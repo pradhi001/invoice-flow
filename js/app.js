@@ -287,21 +287,48 @@ function initNavigation() {
 function initInvoiceForm() {
     const btnAddRow = document.getElementById('btn-add-item-row');
     const tbody = document.getElementById('invoice-items-body');
+    const subtotalEl = document.getElementById('invoice-subtotal');
+    const taxEl = document.getElementById('invoice-tax');
+    const taxRateSelect = document.getElementById('invoice-tax-rate');
+    const taxLabel = document.getElementById('tax-label');
     const totalAmountEl = document.getElementById('invoice-total-amount');
 
     if (!btnAddRow || !tbody) return;
 
+    function formatCurrency(num) {
+        return '$' + num.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,');
+    }
+
     function calculateTotal() {
-        let total = 0;
+        let subtotal = 0;
         const rows = tbody.querySelectorAll('tr');
         rows.forEach(row => {
             const qty = parseFloat(row.querySelector('.qty-input').value) || 0;
             const price = parseFloat(row.querySelector('.price-input').value) || 0;
             const amount = qty * price;
-            row.querySelector('.amount-input').value = amount.toFixed(2);
-            total += amount;
+            const amountEl = row.querySelector('.amount-val');
+            if (amountEl) amountEl.textContent = formatCurrency(amount);
+            subtotal += amount;
         });
-        if (totalAmountEl) totalAmountEl.value = total.toFixed(2);
+        
+        if (subtotalEl) subtotalEl.textContent = formatCurrency(subtotal);
+
+        // Tax calculation
+        let taxRate = 0;
+        if (taxRateSelect) {
+            taxRate = parseFloat(taxRateSelect.value) || 0;
+            if (taxLabel) taxLabel.textContent = `(${taxRate}%)`;
+        }
+
+        const taxAmount = subtotal * (taxRate / 100);
+        if (taxEl) taxEl.textContent = formatCurrency(taxAmount);
+
+        const total = subtotal + taxAmount;
+        if (totalAmountEl) totalAmountEl.textContent = formatCurrency(total);
+    }
+
+    if (taxRateSelect) {
+        taxRateSelect.addEventListener('change', calculateTotal);
     }
 
     function attachRowEvents(row) {
@@ -315,11 +342,8 @@ function initInvoiceForm() {
         if (btnRemove) {
             btnRemove.addEventListener('click', (e) => {
                 e.preventDefault();
-                // Prevent removing if it's the last row
-                if (tbody.querySelectorAll('tr').length > 1) {
-                    row.remove();
-                    calculateTotal();
-                }
+                row.remove();
+                calculateTotal();
             });
         }
     }
@@ -334,35 +358,36 @@ function initInvoiceForm() {
         tr.style.borderBottom = '1px solid var(--color-neutral-100)';
         tr.style.transition = 'background 0.2s';
         tr.innerHTML = `
-            <td style="padding: 12px 16px;">
-                <select class="form-control" style="width: 100%; padding: 10px; border: 1px solid var(--color-neutral-200); border-radius: 6px; outline: none; color: var(--color-neutral-800); background: var(--color-neutral-50); font-weight: 500;"><option>Select...</option></select>
+            <td style="padding: 16px;">
+                <input type="text" value="DC-0000" class="form-control" style="width: 100%; padding: 8px; background: transparent; border: 1px solid transparent; font-family: inherit; font-size: 0.875rem; outline: none; border-radius: 4px;">
             </td>
-            <td style="padding: 12px 16px;">
-                <select class="form-control" style="width: 100%; padding: 10px; border: 1px solid var(--color-neutral-200); border-radius: 6px; outline: none; color: var(--color-neutral-800); background: var(--color-neutral-50); font-weight: 500;"><option>Select...</option></select>
+            <td style="padding: 16px;">
+                <input type="text" value="000" class="form-control" style="width: 100%; padding: 8px; background: transparent; border: 1px solid transparent; font-family: inherit; font-size: 0.875rem; outline: none; border-radius: 4px;">
             </td>
-            <td style="padding: 12px 16px;">
-                <select class="form-control" style="width: 100%; padding: 10px; border: 1px solid var(--color-neutral-200); border-radius: 6px; outline: none; color: var(--color-neutral-800); background: var(--color-neutral-50); font-weight: 500;"><option>Select...</option></select>
+            <td style="padding: 16px;">
+                <input type="text" value="ITEM-CODE" class="form-control" style="width: 100%; padding: 8px; background: transparent; border: 1px solid transparent; font-family: inherit; font-size: 0.875rem; outline: none; border-radius: 4px;">
             </td>
-            <td style="padding: 12px 16px;">
-                <input type="number" class="form-control qty-input" placeholder="0" style="width: 100%; padding: 10px; border: 1px solid var(--color-neutral-200); border-radius: 6px; outline: none; font-weight: 600; color: var(--color-primary-900);">
+            <td style="padding: 16px;">
+                <input type="number" class="form-control qty-input" value="1" style="width: 60px; padding: 8px; background: transparent; border: 1px solid transparent; font-family: inherit; font-size: 0.875rem; outline: none; border-radius: 4px;">
             </td>
-            <td style="padding: 12px 16px;">
-                <div style="position: relative;">
-                    <span style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--color-neutral-400); font-weight: 600;">$</span>
-                    <input type="number" class="form-control price-input" placeholder="0.00" style="width: 100%; padding: 10px 10px 10px 24px; border: 1px solid var(--color-neutral-200); border-radius: 6px; outline: none; font-weight: 600; color: var(--color-primary-900);">
-                </div>
+            <td style="padding: 16px; color: var(--color-neutral-500);">
+                $ <input type="number" class="form-control price-input" value="0.00" style="width: 80px; padding: 8px; background: transparent; border: 1px solid transparent; font-family: inherit; font-size: 0.875rem; outline: none; border-radius: 4px; color: var(--color-neutral-600);">
             </td>
-            <td style="padding: 12px 16px; display: flex; align-items: center; gap: 12px;">
-                <div style="position: relative; flex: 1;">
-                    <span style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--color-primary-500); font-weight: 700;">$</span>
-                    <input type="text" class="form-control amount-input" placeholder="0.00" readonly style="width: 100%; padding: 10px 10px 10px 24px; border: none; background: var(--color-primary-50); border-radius: 6px; font-weight: 700; color: var(--color-primary-800); outline: none;">
-                </div>
-                <button class="btn-remove-row" style="background: white; color: var(--color-error-600); border: 1px solid var(--color-error-100); width: 32px; height: 32px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all 0.2s;" onmouseover="this.style.background='var(--color-error-50)'; this.style.borderColor='var(--color-error-200)'" onmouseout="this.style.background='white'; this.style.borderColor='var(--color-error-100)'"><i class="fas fa-trash-alt" style="font-size: 13px;"></i></button>
+            <td style="padding: 16px; font-weight: 700; color: var(--color-primary-900);">
+                <span class="amount-val">$0.00</span>
+            </td>
+            <td style="padding: 16px; text-align: right;">
+                <button class="btn-remove-row" style="background: transparent; color: var(--color-neutral-400); border: none; cursor: pointer; font-size: 1rem; padding: 4px 8px; border-radius: 4px; transition: 0.2s;" onmouseover="this.style.color='var(--color-error-600)'" onmouseout="this.style.color='var(--color-neutral-400)'"><i class="fas fa-times"></i></button>
             </td>
         `;
         tbody.appendChild(tr);
         attachRowEvents(tr);
+        calculateTotal();
     });
+
+    // Initialize with two rows like the screenshot
+    btnAddRow.click();
+    btnAddRow.click();
 }
 
 /* ---- Invoice Tabs ---- */

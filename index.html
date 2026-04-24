@@ -491,109 +491,127 @@
                 
                 <!-- Create Invoice Page -->
                 <div class="page create-invoice-page" id="page-create-invoice">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px;">
+                    <!-- Header Area -->
+                    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 32px;">
                         <div>
-                            <h2 style="font-size: 1.75rem; font-weight: 800; color: var(--color-primary-900); margin: 0 0 4px 0; letter-spacing: -0.5px;">Create Labour Invoice</h2>
-                            <div style="color: var(--color-neutral-500); font-size: 0.875rem; font-weight: 500;">
-                                <span>Labour Management</span> <i class="fas fa-chevron-right" style="font-size: 10px; margin: 0 8px; color: var(--color-neutral-400);"></i> <span style="color: var(--color-primary-600);">New Invoice</span>
+                            <div style="font-size: 0.75rem; font-weight: 700; color: var(--color-neutral-500); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px;">Document Creation</div>
+                            <h2 style="font-size: 2.5rem; font-weight: 800; color: var(--color-primary-900); margin: 0; letter-spacing: -1px;">New Ledger Entry</h2>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 24px;">
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <span style="font-size: 0.75rem; font-weight: 700; color: var(--color-neutral-500); text-transform: uppercase; letter-spacing: 1px;">Reference ID</span>
+                                <span style="font-size: 1.25rem; color: var(--color-neutral-700);">INV-2024-00124</span>
+                            </div>
+                            <button class="btn-primary" style="padding: 12px 24px; font-size: 0.875rem; border-radius: 4px; display: flex; align-items: center; gap: 8px;"><i class="fas fa-paper-plane"></i> Submit Invoice</button>
+                        </div>
+                    </div>
+
+                    <!-- Main Form Container -->
+                    <div style="background: white; border-radius: 8px; box-shadow: var(--shadow-sm); padding: 32px; margin-bottom: 24px;">
+                        
+                        <!-- Top Row Inputs -->
+                        <div style="display: grid; grid-template-columns: 1fr 2fr 1fr; gap: 24px; margin-bottom: 40px;">
+                            <div>
+                                <label style="display: block; font-size: 0.75rem; font-weight: 700; color: var(--color-neutral-800); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Invoice Date</label>
+                                <input type="date" class="form-control" style="width: 100%; padding: 12px 16px; background: #f4f5f7; border: none; border-radius: 4px; font-family: inherit; font-size: 0.875rem; outline: none; color: var(--color-neutral-800);">
+                            </div>
+                            <div>
+                                <label style="display: block; font-size: 0.75rem; font-weight: 700; color: var(--color-neutral-800); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Vendor Entity</label>
+                                <select class="form-control" style="width: 100%; padding: 12px 16px; background: #f4f5f7; border: none; border-radius: 4px; font-family: inherit; font-size: 0.875rem; outline: none; color: var(--color-neutral-800); cursor: pointer;">
+                                    <option>Select a vendor</option>
+                                    <option>Global Logistics</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="display: block; font-size: 0.75rem; font-weight: 700; color: var(--color-neutral-800); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Project Code</label>
+                                <input type="text" placeholder="e.g. PJ-702" class="form-control" style="width: 100%; padding: 12px 16px; background: #f4f5f7; border: none; border-radius: 4px; font-family: inherit; font-size: 0.875rem; outline: none; color: var(--color-neutral-800);">
+                            </div>
+                        </div>
+
+                        <!-- Table -->
+                        <div style="margin-bottom: 32px;">
+                            <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                                <thead>
+                                    <tr style="background: #f4f5f7;">
+                                        <th style="padding: 16px; font-size: 0.75rem; font-weight: 700; color: var(--color-neutral-800); text-transform: uppercase; letter-spacing: 0.5px; border-top-left-radius: 4px; border-bottom-left-radius: 4px;">DC NO</th>
+                                        <th style="padding: 16px; font-size: 0.75rem; font-weight: 700; color: var(--color-neutral-800); text-transform: uppercase; letter-spacing: 0.5px;">PO Item NO</th>
+                                        <th style="padding: 16px; font-size: 0.75rem; font-weight: 700; color: var(--color-neutral-800); text-transform: uppercase; letter-spacing: 0.5px;">Item Code</th>
+                                        <th style="padding: 16px; font-size: 0.75rem; font-weight: 700; color: var(--color-neutral-800); text-transform: uppercase; letter-spacing: 0.5px;">Qty</th>
+                                        <th style="padding: 16px; font-size: 0.75rem; font-weight: 700; color: var(--color-neutral-800); text-transform: uppercase; letter-spacing: 0.5px;">Unit Price</th>
+                                        <th style="padding: 16px; font-size: 0.75rem; font-weight: 700; color: var(--color-neutral-800); text-transform: uppercase; letter-spacing: 0.5px;">Amount</th>
+                                        <th style="padding: 16px; border-top-right-radius: 4px; border-bottom-right-radius: 4px;"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="invoice-items-body">
+                                    <!-- Dynamic rows will go here via JS -->
+                                </tbody>
+                            </table>
+                            
+                            <div style="padding: 16px;">
+                                <button id="btn-add-item-row" style="background: transparent; color: var(--color-primary-700); font-weight: 600; font-size: 0.875rem; border: none; cursor: pointer; display: flex; align-items: center; gap: 8px; padding: 8px 0;">
+                                    <div style="width: 18px; height: 18px; border-radius: 50%; background: var(--color-primary-700); color: white; display: flex; align-items: center; justify-content: center; font-size: 10px;"><i class="fas fa-plus"></i></div> Add Row
+                                </button>
+                            </div>
+                            
+                            <div style="border-top: 1px solid var(--color-neutral-200); margin-top: 8px;"></div>
+                        </div>
+
+                        <!-- Bottom Section -->
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 64px;">
+                            <!-- Left: Tax & Notes -->
+                            <div>
+                                <div style="margin-bottom: 24px;">
+                                    <label style="display: block; font-size: 0.75rem; font-weight: 700; color: var(--color-neutral-800); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Tax (Select)</label>
+                                    <select id="invoice-tax-rate" class="form-control" style="width: 100%; padding: 12px 16px; background: #f4f5f7; border: none; border-radius: 4px; font-family: inherit; font-size: 0.875rem; outline: none; color: var(--color-neutral-800); cursor: pointer;">
+                                        <option value="15">Standard GST (15%)</option>
+                                        <option value="0">No Tax (0%)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style="display: block; font-size: 0.75rem; font-weight: 700; color: var(--color-neutral-800); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Internal Notes</label>
+                                    <textarea class="form-control" placeholder="Optional notes for logistics team..." style="width: 100%; padding: 12px 16px; background: #f4f5f7; border: none; border-radius: 4px; font-family: inherit; font-size: 0.875rem; outline: none; min-height: 80px; resize: vertical; color: var(--color-neutral-800);"></textarea>
+                                </div>
+                            </div>
+
+                            <!-- Right: Totals -->
+                            <div>
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 16px; font-size: 0.875rem; color: var(--color-neutral-800);">
+                                    <span>Subtotal</span>
+                                    <span style="font-weight: 600;" id="invoice-subtotal">$0.00</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 24px; font-size: 0.875rem; color: var(--color-neutral-800);">
+                                    <span>Tax Applied <span id="tax-label">(15%)</span></span>
+                                    <span style="font-weight: 600;" id="invoice-tax">$0.00</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px; padding-top: 24px; border-top: 1px solid var(--color-neutral-200);">
+                                    <span style="font-size: 0.875rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--color-neutral-800);">Total Amount</span>
+                                    <span style="font-size: 2rem; font-weight: 800; color: var(--color-primary-900);" id="invoice-total-amount">$0.00</span>
+                                </div>
+
+                                <div style="display: flex; justify-content: flex-end; gap: 16px;">
+                                    <button style="padding: 12px 24px; background: #e5e7eb; color: var(--color-neutral-800); border: none; border-radius: 4px; font-weight: 600; font-size: 0.875rem; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='#d1d5db'" onmouseout="this.style.background='#e5e7eb'">Save Draft</button>
+                                    <button class="btn-primary" style="padding: 12px 24px; font-weight: 600; font-size: 0.875rem; border-radius: 4px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border: none; cursor: pointer;">Submit Invoice</button>
+                                </div>
                             </div>
                         </div>
                     </div>
-                    
-                    <div class="card" style="padding: 40px; background: white; border-radius: 16px; border: none; box-shadow: 0 10px 30px rgba(10, 61, 107, 0.05), 0 1px 3px rgba(0,0,0,0.05);">
-                        <div class="form-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 32px; margin-bottom: 40px;">
-                            <div class="form-group">
-                                <label style="display: block; margin-bottom: 10px; font-weight: 600; color: var(--color-primary-900); font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.5px;">Invoice Date</label>
-                                <div style="position: relative;">
-                                    <input type="date" class="form-control" style="width: 100%; padding: 12px 16px; border: 2px solid var(--color-neutral-200); border-radius: 8px; font-family: inherit; color: var(--color-neutral-800); outline: none; transition: border-color 0.2s; font-weight: 500;" onfocus="this.style.borderColor='var(--color-primary-400)'" onblur="this.style.borderColor='var(--color-neutral-200)'">
-                                </div>
-                            </div>
-                            <div class="form-group">
-                                <label style="display: block; margin-bottom: 10px; font-weight: 600; color: var(--color-primary-900); font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.5px;">Select Vendor</label>
-                                <select class="form-control" style="width: 100%; padding: 12px 16px; border: 2px solid var(--color-neutral-200); border-radius: 8px; font-family: inherit; background-color: var(--color-neutral-50); color: var(--color-neutral-800); outline: none; transition: border-color 0.2s; font-weight: 500; cursor: pointer;" onfocus="this.style.borderColor='var(--color-primary-400)'" onblur="this.style.borderColor='var(--color-neutral-200)'">
-                                    <option>Choose a vendor...</option>
-                                    <option>Global Shipping Co.</option>
-                                    <option>Northern Transit</option>
-                                </select>
-                            </div>
+
+                    <!-- Info Cards -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24px;">
+                        <div style="background: #f0f7ff; padding: 24px; border-radius: 8px;">
+                            <i class="fas fa-certificate" style="color: var(--color-primary-600); margin-bottom: 12px; font-size: 1.25rem;"></i>
+                            <h4 style="font-size: 0.875rem; font-weight: 700; color: var(--color-primary-900); margin-bottom: 8px;">Compliance Check</h4>
+                            <p style="font-size: 0.75rem; color: var(--color-primary-700); margin: 0; line-height: 1.5;">All fields match the vendor master file requirements for Metropolitan Steel Works.</p>
                         </div>
-
-                        <div style="margin-bottom: 32px;">
-                            <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 16px;">
-                                <h3 style="font-size: 1.125rem; font-weight: 700; color: var(--color-primary-900); margin: 0;">Line Items</h3>
-                                <button id="btn-add-item-row" style="background: var(--color-primary-50); color: var(--color-primary-700); border: 1px solid var(--color-primary-100); padding: 8px 16px; border-radius: 6px; font-weight: 600; font-size: 0.875rem; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; gap: 6px;" onmouseover="this.style.background='var(--color-primary-100)'" onmouseout="this.style.background='var(--color-primary-50)'"><i class="fas fa-plus"></i> Add Line</button>
-                            </div>
-                            
-                            <div style="overflow-x: auto; border: 1px solid var(--color-neutral-200); border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.02);">
-                                <table class="form-table" style="width: 100%; text-align: left; border-collapse: collapse; background: white;">
-                                    <thead>
-                                        <tr style="background: var(--color-neutral-50); border-bottom: 2px solid var(--color-neutral-200);">
-                                            <th style="padding: 16px; font-weight: 700; font-size: 0.75rem; color: var(--color-neutral-500); text-transform: uppercase; letter-spacing: 1px; width: 15%;">DC NO</th>
-                                            <th style="padding: 16px; font-weight: 700; font-size: 0.75rem; color: var(--color-neutral-500); text-transform: uppercase; letter-spacing: 1px; width: 15%;">PO Item NO</th>
-                                            <th style="padding: 16px; font-weight: 700; font-size: 0.75rem; color: var(--color-neutral-500); text-transform: uppercase; letter-spacing: 1px; width: 15%;">Item Code</th>
-                                            <th style="padding: 16px; font-weight: 700; font-size: 0.75rem; color: var(--color-neutral-500); text-transform: uppercase; letter-spacing: 1px; width: 12%;">Qty</th>
-                                            <th style="padding: 16px; font-weight: 700; font-size: 0.75rem; color: var(--color-neutral-500); text-transform: uppercase; letter-spacing: 1px; width: 18%;">Rate</th>
-                                            <th style="padding: 16px; font-weight: 700; font-size: 0.75rem; color: var(--color-neutral-500); text-transform: uppercase; letter-spacing: 1px; width: 25%;">Amount</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="invoice-items-body">
-                                        <tr style="border-bottom: 1px solid var(--color-neutral-100); transition: background 0.2s;">
-                                            <td style="padding: 12px 16px;">
-                                                <select class="form-control" style="width: 100%; padding: 10px; border: 1px solid var(--color-neutral-200); border-radius: 6px; outline: none; color: var(--color-neutral-800); background: var(--color-neutral-50); font-weight: 500;"><option>Select...</option></select>
-                                            </td>
-                                            <td style="padding: 12px 16px;">
-                                                <select class="form-control" style="width: 100%; padding: 10px; border: 1px solid var(--color-neutral-200); border-radius: 6px; outline: none; color: var(--color-neutral-800); background: var(--color-neutral-50); font-weight: 500;"><option>Select...</option></select>
-                                            </td>
-                                            <td style="padding: 12px 16px;">
-                                                <select class="form-control" style="width: 100%; padding: 10px; border: 1px solid var(--color-neutral-200); border-radius: 6px; outline: none; color: var(--color-neutral-800); background: var(--color-neutral-50); font-weight: 500;"><option>Select...</option></select>
-                                            </td>
-                                            <td style="padding: 12px 16px;">
-                                                <input type="number" class="form-control qty-input" placeholder="0" style="width: 100%; padding: 10px; border: 1px solid var(--color-neutral-200); border-radius: 6px; outline: none; font-weight: 600; color: var(--color-primary-900);">
-                                            </td>
-                                            <td style="padding: 12px 16px;">
-                                                <div style="position: relative;">
-                                                    <span style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--color-neutral-400); font-weight: 600;">$</span>
-                                                    <input type="number" class="form-control price-input" placeholder="0.00" style="width: 100%; padding: 10px 10px 10px 24px; border: 1px solid var(--color-neutral-200); border-radius: 6px; outline: none; font-weight: 600; color: var(--color-primary-900);">
-                                                </div>
-                                            </td>
-                                            <td style="padding: 12px 16px; display: flex; align-items: center; gap: 12px;">
-                                                <div style="position: relative; flex: 1;">
-                                                    <span style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--color-primary-500); font-weight: 700;">$</span>
-                                                    <input type="text" class="form-control amount-input" placeholder="0.00" readonly style="width: 100%; padding: 10px 10px 10px 24px; border: none; background: var(--color-primary-50); border-radius: 6px; font-weight: 700; color: var(--color-primary-800); outline: none;">
-                                                </div>
-                                                <button class="btn-remove-row" style="background: white; color: var(--color-error-600); border: 1px solid var(--color-error-100); width: 32px; height: 32px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all 0.2s;" onmouseover="this.style.background='var(--color-error-50)'; this.style.borderColor='var(--color-error-200)'" onmouseout="this.style.background='white'; this.style.borderColor='var(--color-error-100)'"><i class="fas fa-trash-alt" style="font-size: 13px;"></i></button>
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                    <tfoot>
-                                        <tr style="background: var(--color-primary-900);">
-                                            <td colspan="4" style="border-right: 1px solid rgba(255,255,255,0.1);"></td>
-                                            <td style="padding: 16px; text-align: right; font-weight: 700; font-size: 1rem; color: white; letter-spacing: 0.5px;">TOTAL</td>
-                                            <td style="padding: 16px;">
-                                                <div style="position: relative;">
-                                                    <span style="position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: rgba(255,255,255,0.7); font-weight: 700; font-size: 1.125rem;">$</span>
-                                                    <input type="text" id="invoice-total-amount" value="0.00" readonly style="width: 100%; padding: 10px 10px 10px 32px; border: none; background: transparent; font-weight: 800; font-size: 1.25rem; color: white; outline: none;">
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    </tfoot>
-                                </table>
-                            </div>
+                        <div style="background: #f4f5f7; padding: 24px; border-radius: 8px;">
+                            <i class="fas fa-clock" style="color: var(--color-neutral-600); margin-bottom: 12px; font-size: 1.25rem;"></i>
+                            <h4 style="font-size: 0.875rem; font-weight: 700; color: var(--color-neutral-800); margin-bottom: 8px;">Payment Schedule</h4>
+                            <p style="font-size: 0.75rem; color: var(--color-neutral-600); margin: 0; line-height: 1.5;">Based on Net-30 terms, this payment is projected for release on November 15, 2024.</p>
                         </div>
-
-                        <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-top: 40px; padding-top: 32px; border-top: 1px solid var(--color-neutral-200);">
-                            <div class="form-group" style="width: 40%;">
-                                <label style="display: block; margin-bottom: 10px; font-weight: 600; color: var(--color-primary-900); font-size: 0.875rem; text-transform: uppercase; letter-spacing: 0.5px;">Tax Configuration</label>
-                                <select class="form-control" style="width: 100%; padding: 12px 16px; border: 2px solid var(--color-neutral-200); border-radius: 8px; font-family: inherit; background-color: var(--color-neutral-50); color: var(--color-neutral-800); outline: none; transition: border-color 0.2s; font-weight: 500; cursor: pointer;" onfocus="this.style.borderColor='var(--color-primary-400)'" onblur="this.style.borderColor='var(--color-neutral-200)'">
-                                    <option>Select applicable tax...</option>
-                                    <option>GST 18%</option>
-                                    <option>GST 12%</option>
-                                </select>
-                            </div>
-
-                            <button style="background: var(--color-primary-600); color: white; border: none; padding: 14px 40px; border-radius: 8px; font-weight: 700; font-size: 1rem; cursor: pointer; transition: all 0.2s; box-shadow: 0 4px 12px rgba(26, 115, 184, 0.3); display: flex; align-items: center; gap: 8px;" onmouseover="this.style.background='var(--color-primary-700)'; this.style.transform='translateY(-2px)'" onmouseout="this.style.background='var(--color-primary-600)'; this.style.transform='translateY(0)'">
-                                <i class="fas fa-check-circle"></i> Save Invoice
-                            </button>
+                        <div style="background: #f4f5f7; padding: 24px; border-radius: 8px;">
+                            <i class="fas fa-question-circle" style="color: var(--color-neutral-600); margin-bottom: 12px; font-size: 1.25rem;"></i>
+                            <h4 style="font-size: 0.875rem; font-weight: 700; color: var(--color-neutral-800); margin-bottom: 8px;">Help Center</h4>
+                            <p style="font-size: 0.75rem; color: var(--color-neutral-600); margin: 0; line-height: 1.5;">Need assistance? Reach out to our billing specialists for real-time support.</p>
                         </div>
                     </div>
                 </div>
