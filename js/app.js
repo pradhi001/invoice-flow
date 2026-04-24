@@ -260,6 +260,102 @@ function initNavigation() {
             }
         });
     });
+
+    // Handle "New Invoice" button click from Invoices page
+    const btnNewInvoice = document.getElementById('btn-new-invoice');
+    if (btnNewInvoice) {
+        btnNewInvoice.addEventListener('click', () => {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            const createPage = document.getElementById('page-create-invoice');
+            if (createPage) createPage.classList.add('active');
+            
+            // Update sidebar nav state
+            document.querySelectorAll('.sidebar-nav .nav-item').forEach(n => n.classList.remove('active'));
+            const createNav = document.getElementById('nav-create-invoice');
+            if (createNav) {
+                createNav.classList.add('active');
+                const group = createNav.closest('.nav-item-group');
+                if (group) group.classList.add('open');
+            }
+        });
+    }
+
+    initInvoiceForm();
+}
+
+/* ---- Invoice Form Logic ---- */
+function initInvoiceForm() {
+    const btnAddRow = document.getElementById('btn-add-item-row');
+    const tbody = document.getElementById('invoice-items-body');
+    const totalAmountEl = document.getElementById('invoice-total-amount');
+
+    if (!btnAddRow || !tbody) return;
+
+    function calculateTotal() {
+        let total = 0;
+        const rows = tbody.querySelectorAll('tr');
+        rows.forEach(row => {
+            const qty = parseFloat(row.querySelector('.qty-input').value) || 0;
+            const price = parseFloat(row.querySelector('.price-input').value) || 0;
+            const amount = qty * price;
+            row.querySelector('.amount-input').value = amount.toFixed(2);
+            total += amount;
+        });
+        if (totalAmountEl) totalAmountEl.value = total.toFixed(2);
+    }
+
+    function attachRowEvents(row) {
+        const qtyInput = row.querySelector('.qty-input');
+        const priceInput = row.querySelector('.price-input');
+        const btnRemove = row.querySelector('.btn-remove-row');
+
+        if (qtyInput) qtyInput.addEventListener('input', calculateTotal);
+        if (priceInput) priceInput.addEventListener('input', calculateTotal);
+        
+        if (btnRemove) {
+            btnRemove.addEventListener('click', (e) => {
+                e.preventDefault();
+                // Prevent removing if it's the last row
+                if (tbody.querySelectorAll('tr').length > 1) {
+                    row.remove();
+                    calculateTotal();
+                }
+            });
+        }
+    }
+
+    // Attach events to initial row
+    tbody.querySelectorAll('tr').forEach(attachRowEvents);
+
+    // Add new row
+    btnAddRow.addEventListener('click', (e) => {
+        e.preventDefault();
+        const tr = document.createElement('tr');
+        tr.style.borderBottom = '1px solid var(--color-neutral-200)';
+        tr.innerHTML = `
+            <td style="padding: 12px; border-right: 1px solid var(--color-neutral-200);">
+                <select class="form-control" style="width: 100%; padding: 10px; border: 1px solid var(--color-neutral-300); border-radius: 4px; outline: none; color: var(--color-neutral-600);"><option>Select DC NO</option></select>
+            </td>
+            <td style="padding: 12px; border-right: 1px solid var(--color-neutral-200);">
+                <select class="form-control" style="width: 100%; padding: 10px; border: 1px solid var(--color-neutral-300); border-radius: 4px; outline: none; color: var(--color-neutral-600);"><option>Select PO Item NO</option></select>
+            </td>
+            <td style="padding: 12px; border-right: 1px solid var(--color-neutral-200);">
+                <select class="form-control" style="width: 100%; padding: 10px; border: 1px solid var(--color-neutral-300); border-radius: 4px; outline: none; color: var(--color-neutral-600);"><option>Select Item Code</option></select>
+            </td>
+            <td style="padding: 12px; border-right: 1px solid var(--color-neutral-200);">
+                <input type="number" class="form-control qty-input" style="width: 100%; padding: 10px; border: 1px solid var(--color-neutral-300); border-radius: 4px; outline: none;">
+            </td>
+            <td style="padding: 12px; border-right: 1px solid var(--color-neutral-200);">
+                <input type="number" class="form-control price-input" style="width: 100%; padding: 10px; border: 1px solid var(--color-neutral-300); border-radius: 4px; outline: none;">
+            </td>
+            <td style="padding: 12px; position: relative; display: flex; align-items: center; gap: 8px;">
+                <input type="text" class="form-control amount-input" readonly style="flex: 1; padding: 10px; border: 1px solid var(--color-neutral-300); border-radius: 4px; background: white; outline: none;">
+                <button class="btn-remove-row" style="background: #e74c3c; color: white; border: none; width: 28px; height: 28px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0;"><i class="fas fa-times" style="font-size: 12px;"></i></button>
+            </td>
+        `;
+        tbody.appendChild(tr);
+        attachRowEvents(tr);
+    });
 }
 
 /* ---- Invoice Tabs ---- */
