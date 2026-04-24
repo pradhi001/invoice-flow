@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invoice Flow - Company Management Dashboard</title>
+    <meta name="description" content="Invoice Flow - Precision Logistics company management dashboard for invoices, challans, purchase orders, inventory and more.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="css/global.css">
+    <link rel="stylesheet" href="css/sidebar.css">
+    <link rel="stylesheet" href="css/dashboard.css">
+    <link rel="stylesheet" href="css/invoices.css">
+</head>
+<body>
+    <div class="app-layout">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="logo-icon">
+                    <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                        <circle cx="16" cy="16" r="15" stroke="white" stroke-width="1.5"/>
+                        <path d="M16 6L10 26H14L16 18L18 26H22L16 6Z" fill="white"/>
+                    </svg>
+                </div>
+                <div class="logo-text">
+                    <span class="logo-title">Invoice Flow</span>
+                    <span class="logo-subtitle">Precision Logistics</span>
+                </div>
+            </div>
+
+            <nav class="sidebar-nav">
+                <a href="#" class="nav-item active" data-page="dashboard" id="nav-dashboard">
+                    <i class="fas fa-th-large"></i>
+                    <span>Dashboard</span>
+                </a>
+                <a href="#" class="nav-item" data-page="invoices" id="nav-invoices">
+                    <i class="fas fa-file-invoice"></i>
+                    <span>Invoices</span>
+                </a>
+                <a href="#" class="nav-item" data-page="delivery-challans" id="nav-delivery-challans">
+                    <i class="fas fa-truck"></i>
+                    <span>Delivery Challans</span>
+                </a>
+                <a href="#" class="nav-item" data-page="loading-sheets" id="nav-loading-sheets">
+                    <i class="fas fa-clipboard-list"></i>
+                    <span>Loading Sheets</span>
+                </a>
+                <a href="#" class="nav-item" data-page="purchase-orders" id="nav-purchase-orders">
+                    <i class="fas fa-cart-shopping"></i>
+                    <span>Purchase Orders</span>
+                </a>
+                <a href="#" class="nav-item" data-page="return-delivery" id="nav-return-delivery">
+                    <i class="fas fa-rotate-left"></i>
+                    <span>Return Delivery Challans</span>
+                </a>
+                <a href="#" class="nav-item" data-page="inventory" id="nav-inventory">
+                    <i class="fas fa-boxes-stacked"></i>
+                    <span>Inventory</span>
+                </a>
+                <a href="#" class="nav-item" data-page="settings" id="nav-settings">
+                    <i class="fas fa-gear"></i>
+                    <span>Settings</span>
+                </a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <a href="#" class="nav-item profile-link" id="nav-profile">
+                    <i class="fas fa-user-circle"></i>
+                    <span>Profile</span>
+                </a>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Top Header Bar -->
+            <header class="top-header" id="top-header">
+                <div class="header-left">
+                    <h1 class="header-title">Invoice Flow</h1>
+                    <div class="search-bar" id="search-bar">
+                        <i class="fas fa-search"></i>
+                        <input type="text" placeholder="Search transactions..." id="search-input">
+                    </div>
+                </div>
+                <div class="header-right">
+                    <button class="header-icon-btn" id="btn-notifications" aria-label="Notifications">
+                        <i class="fas fa-bell"></i>
+                        <span class="notification-badge">3</span>
+                    </button>
+                    <button class="header-icon-btn" id="btn-help" aria-label="Help">
+                        <i class="fas fa-question-circle"></i>
+                    </button>
+                    <div class="user-profile" id="user-profile">
+                        <div class="user-avatar">
+                            <img src="https://ui-avatars.com/api/?name=Alex+Sterling&background=0a3d6b&color=fff&size=36&font-size=0.4&bold=true" alt="Alex Sterling">
+                        </div>
+                        <span class="user-name">Alex Sterling</span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Page Content Container -->
+            <div class="page-content" id="page-content">
+                <!-- Dashboard Page -->
+                <div class="page dashboard-page active" id="page-dashboard">
+                    <!-- Stats Cards Row -->
+                    <div class="stats-row">
+                        <div class="stat-card stat-card-balance" id="stat-balance">
+                            <span class="stat-label">TOTAL OUTSTANDING BALANCE</span>
+                            <span class="stat-value">$1,284,592.40</span>
+                            <div class="stat-footer">
+                                <span class="stat-badge positive">
+                                    <i class="fas fa-arrow-up"></i> +12.5% vs last month
+                                </span>
+                                <div class="avatar-group">
+                                    <img src="https://ui-avatars.com/api/?name=JD&background=2a6db5&color=fff&size=28&font-size=0.45&bold=true" alt="JD">
+                                    <img src="https://ui-avatars.com/api/?name=MK&background=c95a2e&color=fff&size=28&font-size=0.45&bold=true" alt="MK">
+                                    <span class="avatar-more">+4</span>
+                                </div>
+                            </div>
+                            <div class="stat-chart-mini">
+                                <svg viewBox="0 0 120 40" class="mini-chart">
+                                    <polyline points="0,35 15,30 30,25 45,28 60,18 75,22 90,12 105,15 120,8" fill="none" stroke="rgba(10,61,107,0.3)" stroke-width="2"/>
+                                    <polyline points="0,35 15,30 30,25 45,28 60,18 75,22 90,12 105,15 120,8" fill="url(#balanceGrad)" stroke="none"/>
+                                    <defs>
+                                        <linearGradient id="balanceGrad" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="0%" stop-color="rgba(10,61,107,0.15)"/>
+                                            <stop offset="100%" stop-color="rgba(10,61,107,0)"/>
+                                        </linearGradient>
+                                    </defs>
+                                </svg>
+                            </div>
+                        </div>
+
+                        <div class="stat-card stat-card-challans" id="stat-challans">
+                            <span class="stat-label">PENDING CHALLANS</span>
+                            <div class="stat-value-row">
+                                <span class="stat-value">42</span>
+                                <i class="fas fa-truck stat-icon"></i>
+                            </div>
+                            <div class="stat-progress">
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: 65%"></div>
+                                </div>
+                                <span class="progress-label">65% efficiency rating</span>
+                            </div>
+                        </div>
+
+                        <div class="stat-card stat-card-invoices" id="stat-invoices">
+                            <span class="stat-label">ACTIVE INVOICES</span>
+                            <div class="stat-value-row">
+                                <span class="stat-value">184</span>
+                                <i class="fas fa-print stat-icon"></i>
+                            </div>
+                            <div class="stat-invoice-bars">
+                                <div class="invoice-bar-group">
+                                    <div class="invoice-bar" style="width: 60%"></div>
+                                    <div class="invoice-bar" style="width: 45%"></div>
+                                    <div class="invoice-bar" style="width: 30%"></div>
+                                </div>
+                                <span class="invoice-due-label">24 DUE</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Content Grid -->
+                    <div class="dashboard-grid">
+                        <!-- Left Column: Recent Transactions -->
+                        <div class="dashboard-main">
+                            <div class="card transactions-card" id="transactions-card">
+                                <div class="card-header">
+                                    <h2 class="card-title">Recent Transactions</h2>
+                                    <a href="#" class="card-link" id="view-all-activity">View All Activity</a>
+                                </div>
+                                <div class="table-wrapper">
+                                    <table class="transactions-table" id="transactions-table">
+                                        <thead>
+                                            <tr>
+                                                <th>REFERENCE</th>
+                                                <th>ENTITY / COMPANY</th>
+                                                <th>DATE</th>
+                                                <th>AMOUNT</th>
+                                                <th>STATUS</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td><span class="ref-code">INV-84021</span></td>
+                                                <td>
+                                                    <div class="entity-cell">
+                                                        <span class="entity-avatar" style="background: #0a3d6b;">GS</span>
+                                                        <span class="entity-name">Global Shipping Co.</span>
+                                                    </div>
+                                                </td>
+                                                <td>Oct 24, 2023</td>
+                                                <td class="amount-cell">$12,450.00</td>
+                                                <td><span class="status-badge status-paid">PAID</span></td>
+                                            </tr>
+                                            <tr>
+                                                <td><span class="ref-code">CHA-9923</span></td>
+                                                <td>
+                                                    <div class="entity-cell">
+                                                        <span class="entity-avatar" style="background: #4a6fa5;">NT</span>
+                                                        <span class="entity-name">Northern Transit</span>
+                                                    </div>
+                                                </td>
+                                                <td>Oct 23, 2023</td>
+                                                <td class="amount-cell">$4,200.00</td>
+                                                <td><span class="status-badge status-pending">PENDING</span></td>
+                                            </tr>
+                                            <tr>
+                                                <td><span class="ref-code">INV-84019</span></td>
+                                                <td>
+                                                    <div class="entity-cell">
+                                                        <span class="entity-avatar" style="background: #1a5276;">ML</span>
+                                                        <span class="entity-name">Metro Logistics</span>
+                                                    </div>
+                                                </td>
+                                                <td>Oct 22, 2023</td>
+                                                <td class="amount-cell">$1,890.50</td>
+                                                <td><span class="status-badge status-paid">PAID</span></td>
+                                            </tr>
+                                            <tr>
+                                                <td><span class="ref-code">INV-84018</span></td>
+                                                <td>
+                                                    <div class="entity-cell">
+                                                        <span class="entity-avatar" style="background: #2e4057;">AM</span>
+                                                        <span class="entity-name">Apex Maritime</span>
+                                                    </div>
+                                                </td>
+                                                <td>Oct 22, 2023</td>
+                                                <td class="amount-cell">$32,000.00</td>
+                                                <td><span class="status-badge status-paid">PAID</span></td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Right Column: Fleet & Quick Actions -->
+                        <div class="dashboard-side">
+                            <!-- Live Fleet Location Card -->
+                            <div class="card fleet-card" id="fleet-card">
+                                <div class="fleet-image">
+                                    <div class="fleet-overlay">
+                                        <span class="fleet-label">LIVE FLEET LOCATION</span>
+                                        <h3 class="fleet-title">East Terminal Hub</h3>
+                                        <div class="fleet-status">
+                                            <span class="status-dot active"></span>
+                                            <span>ACTIVE LOADING</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Quick Actions Card -->
+                            <div class="card quick-actions-card" id="quick-actions-card">
+                                <h3 class="card-title">Quick Actions</h3>
+                                <div class="actions-grid">
+                                    <button class="action-btn" id="action-upload-manifest">
+                                        <i class="fas fa-file-arrow-up"></i>
+                                        <span>UPLOAD MANIFEST</span>
+                                    </button>
+                                    <button class="action-btn" id="action-new-company">
+                                        <i class="fas fa-building"></i>
+                                        <span>NEW COMPANY</span>
+                                    </button>
+                                    <button class="action-btn" id="action-audit-report">
+                                        <i class="fas fa-chart-bar"></i>
+                                        <span>AUDIT REPORT</span>
+                                    </button>
+                                    <button class="action-btn" id="action-batch-print">
+                                        <i class="fas fa-print"></i>
+                                        <span>BATCH PRINT</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Invoices Page -->
+                <div class="page invoices-page" id="page-invoices">
+                    <!-- Invoice Stats Row -->
+                    <div class="inv-stats-row">
+                        <div class="inv-stat-card inv-stat-revenue">
+                            <div class="inv-stat-top">
+                                <span class="inv-stat-label">TOTAL REVENUE</span>
+                                <i class="fas fa-money-bill-wave inv-stat-icon-sm"></i>
+                            </div>
+                            <span class="inv-stat-value">$142,850.00</span>
+                            <span class="inv-stat-sub">+12.5% from last fiscal month</span>
+                        </div>
+                        <div class="inv-stat-card inv-stat-outstanding">
+                            <span class="inv-stat-label">OUTSTANDING</span>
+                            <span class="inv-stat-value inv-stat-value-red">$14,203.12</span>
+                            <span class="inv-stat-sub">8 INVOICES OVERDUE</span>
+                        </div>
+                        <div class="inv-stat-card inv-stat-pending">
+                            <span class="inv-stat-label">PENDING APPROVAL</span>
+                            <span class="inv-stat-value">12</span>
+                            <span class="inv-stat-sub">Ready for dispatch</span>
+                            <a href="#" class="inv-review-link">REVIEW ALL <i class="fas fa-arrow-right"></i></a>
+                        </div>
+                    </div>
+
+                    <!-- Filters Row -->
+                    <div class="inv-filters-row">
+                        <div class="inv-filters-left">
+                            <span class="inv-filter-label">VIEW</span>
+                            <div class="inv-tabs">
+                                <button class="inv-tab active" data-filter="all">All Invoices</button>
+                                <button class="inv-tab" data-filter="drafts">Drafts</button>
+                                <button class="inv-tab" data-filter="archived">Archived</button>
+                            </div>
+                        </div>
+                        <div class="inv-filters-right">
+                            <button class="inv-btn-outline" id="btn-filter-invoices">
+                                <i class="fas fa-sliders"></i> Filter
+                            </button>
+                            <button class="inv-btn-outline" id="btn-export-csv">
+                                <i class="fas fa-file-export"></i> Export CSV
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Invoice Table -->
+                    <div class="card inv-table-card">
+                        <div class="inv-table-wrapper">
+                            <table class="inv-table" id="invoices-table">
+                                <thead>
+                                    <tr>
+                                        <th>INVOICE #</th>
+                                        <th>CUSTOMER (COMPANY)</th>
+                                        <th>AMOUNT</th>
+                                        <th>DUE DATE</th>
+                                        <th>STATUS</th>
+                                        <th>ACTIONS</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>
+                                            <span class="inv-number">INV-2024-001</span>
+                                            <span class="inv-created">Created Oct 12, 2023</span>
+                                        </td>
+                                        <td>
+                                            <div class="entity-cell">
+                                                <span class="entity-avatar" style="background:#0a3d6b;">SM</span>
+                                                <div class="entity-info">
+                                                    <span class="entity-name">Skyline Modernity Ltd.</span>
+                                                    <span class="entity-email">contact@skymodern.com</span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="amount-cell">$12,450.00</td>
+                                        <td class="inv-date-overdue">Nov 12, 2023</td>
+                                        <td><span class="status-badge status-overdue">OVERDUE</span></td>
+                                        <td>
+                                            <div class="inv-actions">
+                                                <button class="inv-action-btn" title="View"><i class="fas fa-eye"></i></button>
+                                                <button class="inv-action-btn" title="Edit"><i class="fas fa-pen"></i></button>
+                                                <button class="inv-action-btn" title="More"><i class="fas fa-ellipsis-vertical"></i></button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td>
+                                            <span class="inv-number">INV-2024-002</span>
+                                            <span class="inv-created">Created Oct 15, 2023</span>
+                                        </td>
+                                        <td>
+                                            <div class="entity-cell">
+                                                <span class="entity-avatar" style="background:#4a6fa5;">VH</span>
+                                                <div class="entity-info">
+                                                    <span class="entity-name">Vista Housing Co.</span>
+                                                    <span class="entity-email">accounts@vistahousing.io</span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="amount-cell">$8,200.00</td>
+                                        <td>Dec 15, 2023</td>
+                                        <td><span class="status-badge status-paid">PAID</span></td>
+                                        <td>
+                                            <div class="inv-actions">
+                                                <button class="inv-action-btn" title="View"><i class="fas fa-eye"></i></button>
+                                                <button class="inv-action-btn" title="Edit"><i class="fas fa-pen"></i></button>
+                                                <button class="inv-action-btn" title="More"><i class="fas fa-ellipsis-vertical"></i></button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td>
+                                            <span class="inv-number">INV-2024-003</span>
+                                            <span class="inv-created">Created Oct 20, 2023</span>
+                                        </td>
+                                        <td>
+                                            <div class="entity-cell">
+                                                <span class="entity-avatar" style="background:#1a5276;">UR</span>
+                                                <div class="entity-info">
+                                                    <span class="entity-name">Urban Resilience Inc.</span>
+                                                    <span class="entity-email">billing@urban.com</span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <div class="inv-amount-detail">
+                                                <span class="amount-cell">$24,100.00</span>
+                                                <span class="inv-paid-note">Paid: $10,000.00</span>
+                                            </div>
+                                        </td>
+                                        <td>Dec 20, 2023</td>
+                                        <td><span class="status-badge status-partial">PARTIAL</span></td>
+                                        <td>
+                                            <div class="inv-actions">
+                                                <button class="inv-action-btn" title="View"><i class="fas fa-eye"></i></button>
+                                                <button class="inv-action-btn" title="Edit"><i class="fas fa-pen"></i></button>
+                                                <button class="inv-action-btn" title="More"><i class="fas fa-ellipsis-vertical"></i></button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td>
+                                            <span class="inv-number">INV-2024-004</span>
+                                            <span class="inv-created">Created Oct 25, 2023</span>
+                                        </td>
+                                        <td>
+                                            <div class="entity-cell">
+                                                <span class="entity-avatar" style="background:#2e4057;">BR</span>
+                                                <div class="entity-info">
+                                                    <span class="entity-name">Blue Rock Developments</span>
+                                                    <span class="entity-email">accounts@bluerock.org</span>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td class="amount-cell">$5,750.00</td>
+                                        <td class="inv-date-overdue">Nov 05, 2023</td>
+                                        <td><span class="status-badge status-overdue">OVERDUE</span></td>
+                                        <td>
+                                            <div class="inv-actions">
+                                                <button class="inv-action-btn" title="View"><i class="fas fa-eye"></i></button>
+                                                <button class="inv-action-btn" title="Edit"><i class="fas fa-pen"></i></button>
+                                                <button class="inv-action-btn" title="More"><i class="fas fa-ellipsis-vertical"></i></button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <!-- Pagination -->
+                        <div class="inv-pagination">
+                            <span class="inv-showing">Showing 4 of 128 invoices</span>
+                            <div class="inv-page-btns">
+                                <button class="inv-page-btn" disabled><i class="fas fa-chevron-left"></i></button>
+                                <button class="inv-page-btn active">1</button>
+                                <button class="inv-page-btn">2</button>
+                                <button class="inv-page-btn">3</button>
+                                <button class="inv-page-btn"><i class="fas fa-chevron-right"></i></button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- CTA Banner -->
+                    <div class="inv-cta-banner">
+                        <div class="inv-cta-text">
+                            <h3>Maximize your cash flow efficiency.</h3>
+                            <p>Automated reminders for your client Companies are proven to reduce overdue invoices by up to 40%. Activate the smart scheduling engine to handle collections while you focus on the architecture.</p>
+                        </div>
+                        <button class="inv-cta-btn" id="btn-enable-reminders">ENABLE AUTO-REMINDERS</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+# Ignore node_modules
+node_modules/
+
+# Environment files
+.env
+.env.local
+.env.production
+
+# Vercel
+.vercel/
+
+# OS files
+.DS_Store
+Thumbs.db

@@ -1,0 +1,117 @@
+/* ========================================
+   SIDEBAR STYLES
+   ======================================== */
+
+.sidebar {
+    width: var(--sidebar-width);
+    height: 100vh;
+    background: var(--color-primary-900);
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    z-index: 100;
+}
+
+.sidebar-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-5) var(--space-4);
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+.logo-icon {
+    width: 36px;
+    height: 36px;
+    flex-shrink: 0;
+}
+
+.logo-text {
+    display: flex;
+    flex-direction: column;
+}
+
+.logo-title {
+    font-size: var(--font-size-base);
+    font-weight: 700;
+    color: var(--color-white);
+    line-height: 1.2;
+}
+
+.logo-subtitle {
+    font-size: var(--font-size-xs);
+    color: rgba(255,255,255,0.5);
+    font-weight: 400;
+}
+
+/* Navigation */
+.sidebar-nav {
+    flex: 1;
+    padding: var(--space-4) var(--space-3);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    overflow-y: auto;
+}
+
+.nav-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-base);
+    font-weight: 500;
+    color: rgba(255,255,255,0.6);
+    transition: all var(--transition-fast);
+    white-space: nowrap;
+}
+
+.nav-item i {
+    width: 20px;
+    text-align: center;
+    font-size: var(--font-size-base);
+    flex-shrink: 0;
+}
+
+.nav-item:hover {
+    color: var(--color-white);
+    background: rgba(255,255,255,0.08);
+}
+
+.nav-item.active {
+    color: var(--color-white);
+    background: var(--color-primary-600);
+    font-weight: 600;
+}
+
+/* Sidebar Footer */
+.sidebar-footer {
+    padding: var(--space-4) var(--space-3);
+    border-top: 1px solid rgba(255,255,255,0.08);
+}
+
+.btn-create-new {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    width: 100%;
+    padding: var(--space-3) var(--space-4);
+    background: var(--color-primary-600);
+    color: var(--color-white);
+    font-size: var(--font-size-sm);
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    border-radius: var(--radius-md);
+    transition: background var(--transition-fast);
+    margin-bottom: var(--space-3);
+}
+
+.btn-create-new:hover {
+    background: var(--color-primary-500);
+}
+
+.profile-link {
+    margin-top: var(--space-1);
+}

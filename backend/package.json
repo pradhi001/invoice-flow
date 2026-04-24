@@ -1,0 +1,16 @@
+{
+  "name": "invoice-flow-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Invoice Flow - Vercel Serverless Backend",
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel --prod"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0"
+  },
+  "devDependencies": {
+    "vercel": "^37.0.0"
+  }
+}
