@@ -388,6 +388,32 @@ function initInvoiceForm() {
     // Initialize with two rows like the screenshot
     btnAddRow.click();
     btnAddRow.click();
+
+    // Submit buttons transition to print preview
+    const btnSubmitTop = document.getElementById('btn-submit-invoice-top');
+    const btnSubmitBottom = document.getElementById('btn-submit-invoice-bottom');
+    const btnBackToInvoice = document.getElementById('btn-back-to-invoice');
+
+    function showPrintPreview(e) {
+        e.preventDefault();
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        const printPage = document.getElementById('page-invoice-print');
+        if (printPage) printPage.classList.add('active');
+        
+        // In a real app, you would copy values from the form to the print layout here.
+    }
+
+    if (btnSubmitTop) btnSubmitTop.addEventListener('click', showPrintPreview);
+    if (btnSubmitBottom) btnSubmitBottom.addEventListener('click', showPrintPreview);
+
+    if (btnBackToInvoice) {
+        btnBackToInvoice.addEventListener('click', (e) => {
+            e.preventDefault();
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            const createPage = document.getElementById('page-create-invoice');
+            if (createPage) createPage.classList.add('active');
+        });
+    }
 }
 
 /* ---- Invoice Tabs ---- */

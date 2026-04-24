@@ -13,6 +13,31 @@
     <link rel="stylesheet" href="css/sidebar.css">
     <link rel="stylesheet" href="css/dashboard.css">
     <link rel="stylesheet" href="css/invoices.css">
+    <style>
+        @media print {
+            .sidebar, .top-header, .no-print {
+                display: none !important;
+            }
+            .main-content {
+                margin: 0 !important;
+                padding: 0 !important;
+                width: 100% !important;
+            }
+            .page {
+                padding: 0 !important;
+                background: white !important;
+            }
+            .print-container {
+                box-shadow: none !important;
+                padding: 0 !important;
+                width: 100% !important;
+                margin: 0 !important;
+            }
+            body {
+                background: white !important;
+            }
+        }
+    </style>
 </head>
 <body>
     <div class="app-layout">
@@ -502,7 +527,7 @@
                                 <span style="font-size: 0.75rem; font-weight: 700; color: var(--color-neutral-500); text-transform: uppercase; letter-spacing: 1px;">Reference ID</span>
                                 <span style="font-size: 1.25rem; color: var(--color-neutral-700);">INV-2024-00124</span>
                             </div>
-                            <button class="btn-primary" style="padding: 12px 24px; font-size: 0.875rem; border-radius: 4px; display: flex; align-items: center; gap: 8px;"><i class="fas fa-paper-plane"></i> Submit Invoice</button>
+                            <button id="btn-submit-invoice-top" class="btn-primary" style="padding: 12px 24px; font-size: 0.875rem; border-radius: 4px; display: flex; align-items: center; gap: 8px;"><i class="fas fa-paper-plane"></i> Submit Invoice</button>
                         </div>
                     </div>
 
@@ -590,7 +615,7 @@
 
                                 <div style="display: flex; justify-content: flex-end; gap: 16px;">
                                     <button style="padding: 12px 24px; background: #e5e7eb; color: var(--color-neutral-800); border: none; border-radius: 4px; font-weight: 600; font-size: 0.875rem; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='#d1d5db'" onmouseout="this.style.background='#e5e7eb'">Save Draft</button>
-                                    <button class="btn-primary" style="padding: 12px 24px; font-weight: 600; font-size: 0.875rem; border-radius: 4px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border: none; cursor: pointer;">Submit Invoice</button>
+                                    <button id="btn-submit-invoice-bottom" class="btn-primary" style="padding: 12px 24px; font-weight: 600; font-size: 0.875rem; border-radius: 4px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border: none; cursor: pointer;">Submit Invoice</button>
                                 </div>
                             </div>
                         </div>
@@ -612,6 +637,155 @@
                             <i class="fas fa-question-circle" style="color: var(--color-neutral-600); margin-bottom: 12px; font-size: 1.25rem;"></i>
                             <h4 style="font-size: 0.875rem; font-weight: 700; color: var(--color-neutral-800); margin-bottom: 8px;">Help Center</h4>
                             <p style="font-size: 0.75rem; color: var(--color-neutral-600); margin: 0; line-height: 1.5;">Need assistance? Reach out to our billing specialists for real-time support.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Print Invoice Preview Page -->
+                <div class="page" id="page-invoice-print" style="background: var(--color-neutral-200); padding: 40px; display: flex; justify-content: center; overflow-y: auto;">
+                    <div class="print-container" style="background: white; width: 210mm; min-height: 297mm; padding: 15mm; box-shadow: 0 10px 30px rgba(0,0,0,0.1); font-family: Arial, sans-serif; color: black; position: relative; border-radius: 4px;">
+                        
+                        <!-- Print Actions (Hidden when printing) -->
+                        <div class="no-print" style="position: absolute; top: 15mm; right: -160px; display: flex; flex-direction: column; gap: 12px;">
+                            <button onclick="window.print()" style="background: var(--color-primary-600); color: white; border: none; padding: 12px 24px; border-radius: 6px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); transition: background 0.2s;" onmouseover="this.style.background='var(--color-primary-700)'" onmouseout="this.style.background='var(--color-primary-600)'"><i class="fas fa-print"></i> Print</button>
+                            <button id="btn-back-to-invoice" style="background: white; color: var(--color-neutral-700); border: 1px solid var(--color-neutral-300); padding: 12px 24px; border-radius: 6px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: background 0.2s;" onmouseover="this.style.background='var(--color-neutral-50)'" onmouseout="this.style.background='white'"><i class="fas fa-arrow-left"></i> Edit Form</button>
+                        </div>
+
+                        <!-- Top right pill -->
+                        <div style="position: absolute; top: 15mm; right: 15mm; border: 1px solid black; padding: 4px 12px; font-size: 12px; font-weight: bold; border-radius: 4px;">Original</div>
+
+                        <!-- Header -->
+                        <div style="display: flex; align-items: center; border-bottom: 2px solid black; padding-bottom: 16px; margin-bottom: 16px;">
+                            <div style="width: 100px; height: 100px; display: flex; align-items: center; justify-content: center; margin-right: 20px;">
+                                <!-- Simple fallback logo since we don't have the real one -->
+                                <div style="width: 80px; height: 80px; border-radius: 50%; border: 2px solid #333; display: flex; align-items: center; justify-content: center; flex-direction: column;">
+                                    <i class="fas fa-industry" style="font-size: 24px; color: #333; margin-bottom: 4px;"></i>
+                                    <span style="font-size: 10px; font-weight: bold;">SVE</span>
+                                </div>
+                            </div>
+                            <div style="text-align: center; flex: 1;">
+                                <h1 style="margin: 0 0 8px 0; font-size: 24px; font-weight: bold; font-family: Arial, sans-serif; letter-spacing: 0.5px;">SRI VINAYAGA ENGINEERING</h1>
+                                <p style="margin: 0 0 4px 0; font-size: 12px;">No. 703-1, Balaji Nagar, 5th Cross, Chinna Elasagiri, Sipcot Post, Hosur - 635 126.</p>
+                                <p style="margin: 0 0 4px 0; font-size: 12px;">Phone: 9442046611 | Email: srivinayagaengg0@gmail.com</p>
+                                <p style="margin: 0; font-size: 12px;"><b>GSTIN:</b> 33AFXPC3600G1ZR | <b>PAN:</b> AFXPC3600G</p>
+                            </div>
+                        </div>
+
+                        <!-- Title -->
+                        <div style="text-align: center; border: 1px solid #ddd; padding: 10px; margin-bottom: 16px; background: #fdfdfd;">
+                            <h2 style="margin: 0; color: #e74c3c; font-size: 18px; font-weight: bold; text-transform: uppercase;">LABOUR INVOICE</h2>
+                        </div>
+
+                        <!-- Bill To & Info -->
+                        <div style="display: flex; border: 1px solid #ccc; margin-bottom: 16px;">
+                            <!-- Left Side -->
+                            <div style="flex: 1; padding: 12px; border-right: 1px solid #ccc;">
+                                <p style="margin: 0 0 8px 0; font-weight: bold; font-size: 14px;">Bill To:</p>
+                                <div style="padding-left: 16px; font-size: 13px; line-height: 1.5;">
+                                    <p style="margin: 0;" id="print-vendor-name">CARBORUNDUM UNIVERSAL LTD</p>
+                                    <p style="margin: 0;" id="print-vendor-addr1">PLOT NO.47,SIPCOT INDUSTRIAL COMPLEX</p>
+                                    <p style="margin: 0;" id="print-vendor-addr2">CERAMIC DIVISION</p>
+                                    <p style="margin: 0;" id="print-vendor-phone"><b>Phone:</b> 914344304700</p>
+                                    <p style="margin: 0;" id="print-vendor-email"><b>Email:</b> customercareic@cumi.murugappa.com</p>
+                                    <p style="margin: 0;" id="print-vendor-gst"><b>GSTIN:</b> 33AAACC2474P1ZI</p>
+                                </div>
+                            </div>
+                            <!-- Right Side -->
+                            <div style="flex: 1; display: flex; flex-direction: column;">
+                                <div style="padding: 12px; border-bottom: 1px solid #ccc; font-size: 13px; display: flex;">
+                                    <b style="width: 100px;">Invoice No:</b> <span id="print-invoice-no">058-26/27</span>
+                                </div>
+                                <div style="padding: 12px; border-bottom: 1px solid #ccc; font-size: 13px; display: flex;">
+                                    <b style="width: 100px;">Date:</b> <span id="print-invoice-date">22-04-2026</span>
+                                </div>
+                                <div style="padding: 12px; border-bottom: 1px solid #ccc; font-size: 13px; display: flex;">
+                                    <b style="width: 100px;">Vendor Code:</b> <span id="print-vendor-code">S0417</span>
+                                </div>
+                                <div style="padding: 12px; font-size: 13px; line-height: 1.5; flex: 1;">
+                                    <p style="margin: 0 0 4px 0; font-weight: bold;">Bank Details:</p>
+                                    <p style="margin: 0;">A/C No: 620901010050210</p>
+                                    <p style="margin: 0;">Bank: Union Bank of India</p>
+                                    <p style="margin: 0;">IFSC: UBIN0562092</p>
+                                    <p style="margin: 0;">Branch: Hosur</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Table -->
+                        <table style="width: 100%; border-collapse: collapse; border: 1px solid black; font-size: 13px; text-align: center;">
+                            <thead>
+                                <tr style="background: #f4f5f7;">
+                                    <th style="border: 1px solid black; padding: 8px;">S.No</th>
+                                    <th style="border: 1px solid black; padding: 8px;">DC No</th>
+                                    <th style="border: 1px solid black; padding: 8px;">PO No</th>
+                                    <th style="border: 1px solid black; padding: 8px;">Item Code</th>
+                                    <th style="border: 1px solid black; padding: 8px;">Qty</th>
+                                    <th style="border: 1px solid black; padding: 8px;">U Price</th>
+                                    <th style="border: 1px solid black; padding: 8px; text-align: right;">Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody id="print-invoice-items-body">
+                                <!-- Example items for visual consistency, will be dynamic in real implementation -->
+                                <tr>
+                                    <td style="border: 1px solid black; padding: 6px;">1</td>
+                                    <td style="border: 1px solid black; padding: 6px;">143-26/27</td>
+                                    <td style="border: 1px solid black; padding: 6px;">CICJPO/000018/26</td>
+                                    <td style="border: 1px solid black; padding: 6px;">73181000S06412</td>
+                                    <td style="border: 1px solid black; padding: 6px;">45</td>
+                                    <td style="border: 1px solid black; padding: 6px;">40.00</td>
+                                    <td style="border: 1px solid black; padding: 6px; text-align: right;">1,800.00</td>
+                                </tr>
+                                <tr>
+                                    <td style="border: 1px solid black; padding: 6px;">2</td>
+                                    <td style="border: 1px solid black; padding: 6px;">148-26/27</td>
+                                    <td style="border: 1px solid black; padding: 6px;">CICJPO/000018/26</td>
+                                    <td style="border: 1px solid black; padding: 6px;">73181000D06676</td>
+                                    <td style="border: 1px solid black; padding: 6px;">21</td>
+                                    <td style="border: 1px solid black; padding: 6px;">65.00</td>
+                                    <td style="border: 1px solid black; padding: 6px; text-align: right;">1,365.00</td>
+                                </tr>
+                            </tbody>
+                            <tfoot>
+                                <tr>
+                                    <td colspan="4" rowspan="5" style="border: 1px solid black; padding: 12px; text-align: left; vertical-align: top;">
+                                        <p style="margin: 0 0 4px 0; font-weight: bold; font-size: 12px;">Amount in Words:</p>
+                                        <p style="margin: 0 0 12px 0; font-size: 12px;" id="print-amount-words">Thirty Eight Thousand Five Hundred Sixty Three Rupees Only</p>
+                                        <p style="margin: 0 0 4px 0; font-weight: bold; font-size: 12px;">Terms & Conditions:</p>
+                                        <p style="margin: 0; font-size: 11px;">• Payment terms: 45 days from invoice date</p>
+                                        <p style="margin: 0; font-size: 11px;">• All disputes subject to local jurisdiction</p>
+                                        <p style="margin: 0; font-size: 11px;">• Goods once sold will not be taken back</p>
+                                    </td>
+                                    <td colspan="2" style="border: 1px solid black; padding: 8px; text-align: right;">Taxable Amount</td>
+                                    <td style="border: 1px solid black; padding: 8px; text-align: right;" id="print-taxable-amount">3,165.00</td>
+                                </tr>
+                                <tr>
+                                    <td colspan="2" style="border: 1px solid black; padding: 8px; text-align: right;">CGST (9%)</td>
+                                    <td style="border: 1px solid black; padding: 8px; text-align: right;" id="print-cgst">284.85</td>
+                                </tr>
+                                <tr>
+                                    <td colspan="2" style="border: 1px solid black; padding: 8px; text-align: right;">SGST (9%)</td>
+                                    <td style="border: 1px solid black; padding: 8px; text-align: right;" id="print-sgst">284.85</td>
+                                </tr>
+                                <tr>
+                                    <td colspan="2" style="border: 1px solid black; padding: 8px; text-align: right;">IGST (18%)</td>
+                                    <td style="border: 1px solid black; padding: 8px; text-align: right;" id="print-igst">-</td>
+                                </tr>
+                                <tr>
+                                    <td colspan="2" style="border: 1px solid black; padding: 8px; text-align: right; font-weight: bold;">Grand Total:</td>
+                                    <td style="border: 1px solid black; padding: 8px; text-align: right; font-weight: bold;" id="print-grand-total">3,734.70</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+
+                        <!-- Signatures -->
+                        <div style="display: flex; justify-content: space-between; margin-top: 40px; padding: 0 20px;">
+                            <div style="text-align: center; margin-top: 60px;">
+                                <p style="margin: 0; font-size: 13px;">Receiver's Signature</p>
+                            </div>
+                            <div style="text-align: center;">
+                                <p style="margin: 0 0 60px 0; font-weight: bold; font-size: 13px;">For SRI VINAYAGA ENGINEERING</p>
+                                <p style="margin: 0; font-size: 13px;">Authorized Signatory</p>
+                            </div>
                         </div>
                     </div>
                 </div>
