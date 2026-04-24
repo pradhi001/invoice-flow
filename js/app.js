@@ -400,7 +400,15 @@ function initInvoiceForm() {
         const printPage = document.getElementById('page-invoice-print');
         if (printPage) printPage.classList.add('active');
         
-        // In a real app, you would copy values from the form to the print layout here.
+        // Dynamically create the Duplicate copy if it doesn't exist
+        const originalContainer = document.querySelector('.print-container');
+        if (originalContainer && !document.getElementById('duplicate-container')) {
+            const duplicate = originalContainer.cloneNode(true);
+            duplicate.id = 'duplicate-container';
+            const pill = duplicate.querySelector('.copy-type-pill');
+            if (pill) pill.textContent = 'Duplicate';
+            printPage.appendChild(duplicate);
+        }
     }
 
     if (btnSubmitTop) btnSubmitTop.addEventListener('click', showPrintPreview);

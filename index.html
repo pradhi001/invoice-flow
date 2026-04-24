@@ -642,17 +642,18 @@
                 </div>
 
                 <!-- Print Invoice Preview Page -->
-                <div class="page" id="page-invoice-print" style="background: var(--color-neutral-200); padding: 40px; display: flex; justify-content: center; overflow-y: auto;">
-                    <div class="print-container" style="background: white; width: 210mm; min-height: 297mm; padding: 15mm; box-shadow: 0 10px 30px rgba(0,0,0,0.1); font-family: Arial, sans-serif; color: black; position: relative; border-radius: 4px;">
-                        
-                        <!-- Print Actions (Hidden when printing) -->
-                        <div class="no-print" style="position: absolute; top: 15mm; right: -160px; display: flex; flex-direction: column; gap: 12px;">
-                            <button onclick="window.print()" style="background: var(--color-primary-600); color: white; border: none; padding: 12px 24px; border-radius: 6px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); transition: background 0.2s;" onmouseover="this.style.background='var(--color-primary-700)'" onmouseout="this.style.background='var(--color-primary-600)'"><i class="fas fa-print"></i> Print</button>
-                            <button id="btn-back-to-invoice" style="background: white; color: var(--color-neutral-700); border: 1px solid var(--color-neutral-300); padding: 12px 24px; border-radius: 6px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: background 0.2s;" onmouseover="this.style.background='var(--color-neutral-50)'" onmouseout="this.style.background='white'"><i class="fas fa-arrow-left"></i> Edit Form</button>
-                        </div>
+                <div class="page" id="page-invoice-print" style="background: var(--color-neutral-200); padding: 40px; display: flex; flex-direction: column; align-items: center; overflow-y: auto; gap: 40px;">
+                    
+                    <!-- Print Actions (Hidden when printing) -->
+                    <div class="no-print" style="position: fixed; top: 40px; right: 40px; display: flex; flex-direction: column; gap: 12px; z-index: 100;">
+                        <button onclick="window.print()" style="background: var(--color-primary-600); color: white; border: none; padding: 12px 24px; border-radius: 6px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); transition: background 0.2s;" onmouseover="this.style.background='var(--color-primary-700)'" onmouseout="this.style.background='var(--color-primary-600)'"><i class="fas fa-print"></i> Print</button>
+                        <button id="btn-back-to-invoice" style="background: white; color: var(--color-neutral-700); border: 1px solid var(--color-neutral-300); padding: 12px 24px; border-radius: 6px; font-weight: bold; cursor: pointer; display: flex; align-items: center; gap: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: background 0.2s;" onmouseover="this.style.background='var(--color-neutral-50)'" onmouseout="this.style.background='white'"><i class="fas fa-arrow-left"></i> Edit Form</button>
+                    </div>
 
+                    <div class="print-container" style="background: white; width: 210mm; min-height: 297mm; padding: 15mm; box-shadow: 0 10px 30px rgba(0,0,0,0.1); font-family: Arial, sans-serif; color: black; position: relative; border-radius: 4px; page-break-after: always;">
+                        
                         <!-- Top right pill -->
-                        <div style="position: absolute; top: 15mm; right: 15mm; border: 1px solid black; padding: 4px 12px; font-size: 12px; font-weight: bold; border-radius: 4px;">Original</div>
+                        <div class="copy-type-pill" style="position: absolute; top: 15mm; right: 15mm; border: 1px solid black; padding: 4px 12px; font-size: 12px; font-weight: bold; border-radius: 4px;">Original</div>
 
                         <!-- Header -->
                         <div style="display: flex; align-items: center; border-bottom: 2px solid black; padding-bottom: 16px; margin-bottom: 16px;">
