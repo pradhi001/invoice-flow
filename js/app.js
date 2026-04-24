@@ -206,7 +206,8 @@ function formatCurrency(value) {
 
 /* ---- Navigation ---- */
 function initNavigation() {
-    const navItems = document.querySelectorAll('.sidebar-nav .nav-item');
+    const navItems = document.querySelectorAll('.sidebar-nav .nav-item:not(.nav-dropdown-toggle)');
+    const dropdownToggles = document.querySelectorAll('.nav-dropdown-toggle');
     const searchInput = document.getElementById('search-input');
 
     const searchPlaceholders = {
@@ -220,14 +221,30 @@ function initNavigation() {
         'settings': 'Search settings...'
     };
 
+    // Handle dropdown toggles
+    dropdownToggles.forEach(toggle => {
+        toggle.addEventListener('click', (e) => {
+            e.preventDefault();
+            const group = toggle.closest('.nav-item-group');
+            group.classList.toggle('open');
+        });
+    });
+
+    // Handle standard nav items and sub-items
     navItems.forEach(item => {
         item.addEventListener('click', (e) => {
             e.preventDefault();
             const pageName = item.dataset.page;
 
-            // Update active nav
-            navItems.forEach(n => n.classList.remove('active'));
+            // Update active nav (remove from all, then add to current)
+            document.querySelectorAll('.sidebar-nav .nav-item').forEach(n => n.classList.remove('active'));
             item.classList.add('active');
+
+            // If it's a sub-item, make sure its parent toggle is also styled as active (optional, but good UX)
+            const parentGroup = item.closest('.nav-item-group');
+            if (parentGroup) {
+                parentGroup.querySelector('.nav-dropdown-toggle').classList.add('active');
+            }
 
             // Switch page
             const pages = document.querySelectorAll('.page');
