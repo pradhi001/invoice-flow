@@ -331,26 +331,33 @@ function initInvoiceForm() {
     btnAddRow.addEventListener('click', (e) => {
         e.preventDefault();
         const tr = document.createElement('tr');
-        tr.style.borderBottom = '1px solid var(--color-neutral-200)';
+        tr.style.borderBottom = '1px solid var(--color-neutral-100)';
+        tr.style.transition = 'background 0.2s';
         tr.innerHTML = `
-            <td style="padding: 12px; border-right: 1px solid var(--color-neutral-200);">
-                <select class="form-control" style="width: 100%; padding: 10px; border: 1px solid var(--color-neutral-300); border-radius: 4px; outline: none; color: var(--color-neutral-600);"><option>Select DC NO</option></select>
+            <td style="padding: 12px 16px;">
+                <select class="form-control" style="width: 100%; padding: 10px; border: 1px solid var(--color-neutral-200); border-radius: 6px; outline: none; color: var(--color-neutral-800); background: var(--color-neutral-50); font-weight: 500;"><option>Select...</option></select>
             </td>
-            <td style="padding: 12px; border-right: 1px solid var(--color-neutral-200);">
-                <select class="form-control" style="width: 100%; padding: 10px; border: 1px solid var(--color-neutral-300); border-radius: 4px; outline: none; color: var(--color-neutral-600);"><option>Select PO Item NO</option></select>
+            <td style="padding: 12px 16px;">
+                <select class="form-control" style="width: 100%; padding: 10px; border: 1px solid var(--color-neutral-200); border-radius: 6px; outline: none; color: var(--color-neutral-800); background: var(--color-neutral-50); font-weight: 500;"><option>Select...</option></select>
             </td>
-            <td style="padding: 12px; border-right: 1px solid var(--color-neutral-200);">
-                <select class="form-control" style="width: 100%; padding: 10px; border: 1px solid var(--color-neutral-300); border-radius: 4px; outline: none; color: var(--color-neutral-600);"><option>Select Item Code</option></select>
+            <td style="padding: 12px 16px;">
+                <select class="form-control" style="width: 100%; padding: 10px; border: 1px solid var(--color-neutral-200); border-radius: 6px; outline: none; color: var(--color-neutral-800); background: var(--color-neutral-50); font-weight: 500;"><option>Select...</option></select>
             </td>
-            <td style="padding: 12px; border-right: 1px solid var(--color-neutral-200);">
-                <input type="number" class="form-control qty-input" style="width: 100%; padding: 10px; border: 1px solid var(--color-neutral-300); border-radius: 4px; outline: none;">
+            <td style="padding: 12px 16px;">
+                <input type="number" class="form-control qty-input" placeholder="0" style="width: 100%; padding: 10px; border: 1px solid var(--color-neutral-200); border-radius: 6px; outline: none; font-weight: 600; color: var(--color-primary-900);">
             </td>
-            <td style="padding: 12px; border-right: 1px solid var(--color-neutral-200);">
-                <input type="number" class="form-control price-input" style="width: 100%; padding: 10px; border: 1px solid var(--color-neutral-300); border-radius: 4px; outline: none;">
+            <td style="padding: 12px 16px;">
+                <div style="position: relative;">
+                    <span style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--color-neutral-400); font-weight: 600;">$</span>
+                    <input type="number" class="form-control price-input" placeholder="0.00" style="width: 100%; padding: 10px 10px 10px 24px; border: 1px solid var(--color-neutral-200); border-radius: 6px; outline: none; font-weight: 600; color: var(--color-primary-900);">
+                </div>
             </td>
-            <td style="padding: 12px; position: relative; display: flex; align-items: center; gap: 8px;">
-                <input type="text" class="form-control amount-input" readonly style="flex: 1; padding: 10px; border: 1px solid var(--color-neutral-300); border-radius: 4px; background: white; outline: none;">
-                <button class="btn-remove-row" style="background: #e74c3c; color: white; border: none; width: 28px; height: 28px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0;"><i class="fas fa-times" style="font-size: 12px;"></i></button>
+            <td style="padding: 12px 16px; display: flex; align-items: center; gap: 12px;">
+                <div style="position: relative; flex: 1;">
+                    <span style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--color-primary-500); font-weight: 700;">$</span>
+                    <input type="text" class="form-control amount-input" placeholder="0.00" readonly style="width: 100%; padding: 10px 10px 10px 24px; border: none; background: var(--color-primary-50); border-radius: 6px; font-weight: 700; color: var(--color-primary-800); outline: none;">
+                </div>
+                <button class="btn-remove-row" style="background: white; color: var(--color-error-600); border: 1px solid var(--color-error-100); width: 32px; height: 32px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all 0.2s;" onmouseover="this.style.background='var(--color-error-50)'; this.style.borderColor='var(--color-error-200)'" onmouseout="this.style.background='white'; this.style.borderColor='var(--color-error-100)'"><i class="fas fa-trash-alt" style="font-size: 13px;"></i></button>
             </td>
         `;
         tbody.appendChild(tr);
