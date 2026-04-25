@@ -16,6 +16,9 @@ document.addEventListener('DOMContentLoaded', () => {
     initSearch();
     initAnimations();
     initInvoiceTabs();
+    initLoadingSheets();
+    initInventory();
+    initDept();
 
     // Load live data from backend
     loadDashboardData();
@@ -221,6 +224,8 @@ function initNavigation() {
         'purchase-orders': 'Search purchase orders...',
         'return-delivery': 'Search return challans...',
         'inventory': 'Search inventory...',
+        'dept': 'Search departments...',
+        'products': 'Search products...',
         'vendors': 'Search vendors by name, GST...',
         'add-vendor': 'Enter vendor details...',
         'add-dc': 'Enter challan details...',
@@ -1146,4 +1151,667 @@ function initDCForm() {
             window.scrollTo(0,0);
         }
     });
+}
+
+/* ---- Loading Sheets Logic ---- */
+function initLoadingSheets() {
+    const entryTableBody = document.getElementById('entry-items-table-body');
+    const loadingTableBody = document.getElementById('loading-sheets-table-body');
+    const btnAddItem = document.getElementById('btn-add-item-loading');
+    const btnSubmitPreview = document.getElementById('btn-submit-preview-loading');
+    
+    // Header Stats
+    const headerTotalNos = document.getElementById('header-total-nos');
+    const headerTotalCutting = document.getElementById('header-total-cutting');
+    const headerTotalRate = document.getElementById('header-total-rate');
+    const headerGrandTotal = document.getElementById('header-grand-total');
+
+    // Item Inputs
+    const itemNos = document.getElementById('item-nos');
+    const itemRate = document.getElementById('item-rate');
+    const itemCutting = document.getElementById('item-cutting');
+    const itemTotal = document.getElementById('item-total');
+
+    if (!entryTableBody || !btnAddItem) return;
+
+    let itemsList = [];
+    let allLoadingSheets = []; // Store full sheets data
+
+    // Auto-calculate item total: NOS * CUTTING * RATE
+    function calculateItemTotal() {
+        const nos = parseFloat(itemNos.value) || 0;
+        const cutting = parseFloat(itemCutting.value) || 0;
+        const rate = parseFloat(itemRate.value) || 0;
+        const total = nos * cutting * rate; 
+        itemTotal.value = total.toFixed(2);
+    }
+
+    [itemNos, itemRate, itemCutting].forEach(el => {
+        if (el) el.addEventListener('input', calculateItemTotal);
+    });
+
+    // Add Item to Table
+    btnAddItem.addEventListener('click', () => {
+        const customer = document.getElementById('item-customer').value;
+        const no = document.getElementById('item-no').value;
+        const name = document.getElementById('item-name').value;
+        const serial = document.getElementById('item-serial').value;
+        const nos = parseFloat(itemNos.value) || 0;
+        const cutting = parseFloat(itemCutting.value) || 0;
+        const rate = parseFloat(itemRate.value) || 0;
+        const total = parseFloat(itemTotal.value) || 0;
+
+        // Compulsory fields check
+        if (!serial || !itemNos.value || !itemCutting.value || !itemRate.value) {
+            alert('Compulsory fields needed: Serial No, NOS, Cutting, and Rate');
+            return;
+        }
+
+        const item = { customer, no, name, serial, nos, cutting, rate, total };
+        itemsList.push(item);
+        renderEntryTable();
+        clearItemInputs();
+        updateHeaderStats();
+    });
+
+    function renderEntryTable() {
+        const dcInput = document.getElementById('header-dc-no');
+        if (dcInput) {
+            dcInput.readOnly = itemsList.length > 0;
+            dcInput.style.background = itemsList.length > 0 ? '#f0f2f5' : 'white';
+        }
+
+        if (itemsList.length === 0) {
+            entryTableBody.innerHTML = `<tr id="entry-empty-row"><td colspan="9" style="padding: 40px; text-align: center; color: var(--color-neutral-400);">No items added yet.</td></tr>`;
+            return;
+        }
+
+        entryTableBody.innerHTML = itemsList.map((item, index) => `
+            <tr style="border-bottom: 1px solid var(--color-neutral-100);">
+                <td style="padding: 12px 16px; font-size: 0.875rem; color: var(--color-neutral-700);">${item.customer}</td>
+                <td style="padding: 12px 16px; font-size: 0.875rem; color: var(--color-neutral-700);">${item.no}</td>
+                <td style="padding: 12px 16px; font-size: 0.875rem; color: var(--color-neutral-700);">${item.name}</td>
+                <td style="padding: 12px 16px; font-size: 0.875rem; color: var(--color-neutral-700); white-space: pre-wrap;">${item.serial}</td>
+                <td style="padding: 12px 16px; font-size: 0.875rem; color: var(--color-neutral-700); text-align: center;">${item.nos}</td>
+                <td style="padding: 12px 16px; font-size: 0.875rem; color: var(--color-neutral-700); text-align: center;">${item.cutting}</td>
+                <td style="padding: 12px 16px; font-size: 0.875rem; color: var(--color-neutral-700); text-align: center;">${item.rate.toFixed(2)}</td>
+                <td style="padding: 12px 16px; font-size: 0.875rem; font-weight: 600; color: var(--color-primary-900); text-align: center;">${item.total.toFixed(2)}</td>
+                <td style="padding: 12px 16px; text-align: right;">
+                    <div style="display: flex; gap: 8px; justify-content: flex-end;">
+                        <button class="btn-edit-item" data-index="${index}" style="background: transparent; color: #3b82f6; border: none; cursor: pointer; padding: 4px;" title="Edit"><i class="fas fa-edit"></i></button>
+                        <button class="btn-remove-item" data-index="${index}" style="background: transparent; color: #ef4444; border: none; cursor: pointer; padding: 4px;" title="Delete"><i class="fas fa-trash"></i></button>
+                    </div>
+                </td>
+            </tr>
+        `).join('');
+
+        // Attach remove events
+        entryTableBody.querySelectorAll('.btn-remove-item').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const index = parseInt(btn.dataset.index);
+                itemsList.splice(index, 1);
+                renderEntryTable();
+                updateHeaderStats();
+            });
+        });
+
+        // Attach edit events
+        entryTableBody.querySelectorAll('.btn-edit-item').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const index = parseInt(btn.dataset.index);
+                const item = itemsList[index];
+                
+                // Populate inputs
+                document.getElementById('item-customer').value = item.customer;
+                document.getElementById('item-no').value = item.no;
+                document.getElementById('item-name').value = item.name;
+                document.getElementById('item-serial').value = item.serial;
+                document.getElementById('item-nos').value = item.nos;
+                document.getElementById('item-cutting').value = item.cutting;
+                document.getElementById('item-rate').value = item.rate;
+                document.getElementById('item-total').value = item.total.toFixed(2);
+                
+                // Remove from list so it can be re-added after editing
+                itemsList.splice(index, 1);
+                renderEntryTable();
+                updateHeaderStats();
+
+                // Focus on the first field
+                document.getElementById('item-customer').focus();
+            });
+        });
+    }
+
+    function clearItemInputs() {
+        ['item-customer', 'item-no', 'item-name', 'item-serial', 'item-nos', 'item-rate', 'item-total'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.value = '';
+        });
+        const cutting = document.getElementById('item-cutting');
+        if (cutting) cutting.value = '1';
+    }
+
+    function updateHeaderStats() {
+        const totalNos = itemsList.reduce((sum, item) => sum + item.nos, 0);
+        const totalCutting = itemsList.reduce((sum, item) => sum + item.cutting, 0);
+        const totalRate = itemsList.reduce((sum, item) => sum + item.rate, 0);
+        const grandTotal = itemsList.reduce((sum, item) => sum + item.total, 0);
+
+        if (headerTotalNos) headerTotalNos.value = totalNos;
+        if (headerTotalCutting) headerTotalCutting.value = totalCutting.toFixed(2);
+        if (headerTotalRate) headerTotalRate.value = totalRate.toFixed(2);
+        if (headerGrandTotal) headerGrandTotal.value = grandTotal.toFixed(2);
+    }
+
+    // Submit & Preview (Finalize Entry)
+    if (btnSubmitPreview) {
+        btnSubmitPreview.addEventListener('click', () => {
+            const dcNo = document.getElementById('header-dc-no').value;
+            const date = document.getElementById('header-date').value;
+
+            if (!dcNo || itemsList.length === 0) {
+                alert('Please enter DC No and add at least one item.');
+                return;
+            }
+
+            const totalNos = itemsList.reduce((sum, item) => sum + item.nos, 0);
+            const totalCutting = itemsList.reduce((sum, item) => sum + item.cutting, 0);
+            const totalRate = itemsList.reduce((sum, item) => sum + item.rate, 0);
+            const grandTotal = itemsList.reduce((sum, item) => sum + item.total, 0);
+
+            const sheetData = {
+                dcNo,
+                date,
+                totalNos,
+                totalCutting,
+                totalRate,
+                grandTotal,
+                items: [...itemsList]
+            };
+
+            // Save to main array
+            allLoadingSheets.unshift(sheetData);
+            renderMainLoadingTable();
+
+            // UI Feedback
+            alert('Loading Entry Saved Successfully!');
+            
+            // Reset and Navigate
+            itemsList = [];
+            renderEntryTable();
+            document.getElementById('header-dc-no').value = '';
+            updateHeaderStats();
+            document.getElementById('nav-view-loading').click();
+        });
+    }
+
+    function renderMainLoadingTable() {
+        if (!loadingTableBody) return;
+        
+        loadingTableBody.innerHTML = allLoadingSheets.map((sheet, index) => `
+            <tr style="border-bottom: 1px solid var(--color-neutral-100); transition: background 0.2s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">
+                <td style="padding: 16px; text-align: center;"><input type="checkbox"></td>
+                <td style="padding: 16px; font-size: 0.875rem; font-weight: 600; color: var(--color-neutral-800);">${sheet.dcNo}</td>
+                <td style="padding: 16px; font-size: 0.875rem; color: var(--color-neutral-600);">${sheet.date}</td>
+                <td style="padding: 16px; font-size: 0.875rem; color: var(--color-neutral-800);">${sheet.totalNos}</td>
+                <td style="padding: 16px; font-size: 0.875rem; color: var(--color-neutral-800);">${sheet.totalCutting.toFixed(2)}</td>
+                <td style="padding: 16px; font-size: 0.875rem; color: var(--color-neutral-800);">${sheet.totalRate.toFixed(2)}</td>
+                <td style="padding: 16px; font-size: 0.875rem; font-weight: 700; color: var(--color-primary-900);">${sheet.grandTotal.toFixed(2)}</td>
+                <td style="padding: 16px; text-align: right;">
+                    <div style="display: flex; justify-content: flex-end; gap: 8px;">
+                        <button class="btn-icon btn-print-sheet" data-index="${index}" style="background: var(--color-primary-500); color: white; border: none; width: 32px; height: 32px; border-radius: 4px; cursor: pointer;" title="Print"><i class="fas fa-print"></i></button>
+                        <button class="btn-icon btn-edit-sheet" data-index="${index}" style="background: #3b82f6; color: white; border: none; width: 32px; height: 32px; border-radius: 4px; cursor: pointer;" title="Edit"><i class="fas fa-edit"></i></button>
+                        <button class="btn-primary btn-view-sheet" data-index="${index}" style="padding: 6px 12px; font-size: 0.75rem; border-radius: 4px; background: var(--color-primary-900); color: white; border: none; cursor: pointer;">View</button>
+                    </div>
+                </td>
+            </tr>
+        `).join('');
+
+        // Attach edit sheet events
+        loadingTableBody.querySelectorAll('.btn-edit-sheet').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const index = parseInt(btn.dataset.index);
+                const sheet = allLoadingSheets[index];
+                
+                document.getElementById('header-dc-no').value = sheet.dcNo;
+                document.getElementById('header-date').value = sheet.date;
+                itemsList = [...sheet.items];
+                
+                renderEntryTable();
+                updateHeaderStats();
+
+                allLoadingSheets.splice(index, 1);
+                renderMainLoadingTable();
+
+                document.getElementById('nav-add-loading').click();
+            });
+        });
+
+        // Attach View events
+        loadingTableBody.querySelectorAll('.btn-view-sheet').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const index = parseInt(btn.dataset.index);
+                const sheet = allLoadingSheets[index];
+                
+                document.getElementById('header-dc-no').value = sheet.dcNo;
+                document.getElementById('header-date').value = sheet.date;
+                itemsList = [...sheet.items];
+                
+                renderEntryTable();
+                updateHeaderStats();
+
+                // Just navigate, don't remove from list
+                document.getElementById('nav-add-loading').click();
+            });
+        });
+
+        // Attach Print events
+        loadingTableBody.querySelectorAll('.btn-print-sheet').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const index = parseInt(btn.dataset.index);
+                const sheet = allLoadingSheets[index];
+                
+                // Simple Print implementation
+                const printWindow = window.open('', '_blank');
+                printWindow.document.write(`
+                    <html>
+                    <head>
+                        <title>Loading Sheet - ${sheet.dcNo}</title>
+                        <style>
+                            body { font-family: sans-serif; padding: 40px; }
+                            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                            th { background-color: #f2f2f2; }
+                            .header { display: flex; justify-content: space-between; margin-bottom: 30px; }
+                            .totals { margin-top: 30px; text-align: right; }
+                        </style>
+                    </head>
+                    <body>
+                        <div class="header">
+                            <div>
+                                <h1>LOADING SHEET</h1>
+                                <p><strong>DC No:</strong> ${sheet.dcNo}</p>
+                                <p><strong>Date:</strong> ${sheet.date}</p>
+                            </div>
+                        </div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Customer</th>
+                                    <th>Item No</th>
+                                    <th>Item Name</th>
+                                    <th>NOS</th>
+                                    <th>Cutting</th>
+                                    <th>Rate</th>
+                                    <th>Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${sheet.items.map(item => `
+                                    <tr>
+                                        <td>${item.customer}</td>
+                                        <td>${item.no}</td>
+                                        <td>${item.name}</td>
+                                        <td>${item.nos}</td>
+                                        <td>${item.cutting}</td>
+                                        <td>${item.rate.toFixed(2)}</td>
+                                        <td>${item.total.toFixed(2)}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                        <div class="totals">
+                            <p><strong>Total NOS:</strong> ${sheet.totalNos}</p>
+                            <p><strong>Grand Total:</strong> ₹${sheet.grandTotal.toFixed(2)}</p>
+                        </div>
+                    </body>
+                    </html>
+                `);
+                printWindow.document.close();
+                printWindow.print();
+            });
+        });
+    }
+
+    // Connect "Add Entry" button from View page
+    const btnAddLoadingEntry = document.getElementById('btn-add-loading-sheet');
+    if (btnAddLoadingEntry) {
+        btnAddLoadingEntry.addEventListener('click', () => {
+            const addNav = document.getElementById('nav-add-loading');
+            if (addNav) addNav.click();
+        });
+    }
+
+    // Load DC by Number Logic
+    const btnEditDcNo = document.getElementById('btn-edit-dc-no');
+    if (btnEditDcNo) {
+        btnEditDcNo.addEventListener('click', () => {
+            const dcNo = document.getElementById('header-dc-no').value;
+            if (!dcNo) {
+                alert('Please enter a DC Number first.');
+                return;
+            }
+
+            const sheetIndex = allLoadingSheets.findIndex(s => s.dcNo === dcNo);
+            if (sheetIndex !== -1) {
+                const sheet = allLoadingSheets[sheetIndex];
+                
+                // Restore state
+                document.getElementById('header-date').value = sheet.date;
+                itemsList = [...sheet.items];
+                
+                renderEntryTable();
+                updateHeaderStats();
+
+                // Remove from main list so it can be updated on save
+                allLoadingSheets.splice(sheetIndex, 1);
+                renderMainLoadingTable();
+
+                alert(`DC ${dcNo} loaded for editing.`);
+            } else {
+                alert(`DC ${dcNo} not found in current session.`);
+            }
+        });
+    }
+}
+
+/* ---- Inventory Logic ---- */
+function initInventory() {
+    console.log('Initializing Inventory Module');
+    loadInventoryData();
+
+    const searchInput = document.getElementById('search-inventory');
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase();
+            const rows = document.querySelectorAll('#inventory-table-body tr');
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                row.style.display = text.includes(query) ? '' : 'none';
+            });
+        });
+    }
+
+    const modal = document.getElementById('modal-add-item');
+    const btnAddItem = document.getElementById('btn-add-inventory-item');
+    const btnCloseModal = document.getElementById('btn-close-item-modal');
+    const form = document.getElementById('form-add-item');
+
+    if (btnAddItem && modal) {
+        btnAddItem.addEventListener('click', () => {
+            modal.style.display = 'flex';
+        });
+    }
+
+    if (btnCloseModal && modal) {
+        btnCloseModal.addEventListener('click', () => {
+            modal.style.display = 'none';
+        });
+        
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) modal.style.display = 'none';
+        });
+    }
+
+    if (form) {
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            
+            const code = document.getElementById('item-code-input').value;
+            const rate = document.getElementById('item-rate-input').value;
+            const dept = document.getElementById('item-dept-input').value;
+            const status = document.getElementById('item-status-input').value;
+
+            // In a real app, you would call your backend here
+            console.log('Saving Item:', { code, rate, dept, status });
+            
+            // Add to table (temporary local update)
+            const tbody = document.getElementById('inventory-table-body');
+            const tr = document.createElement('tr');
+            tr.style.borderBottom = '1px solid var(--color-neutral-100)';
+            tr.style.transition = 'background 0.2s';
+            tr.onmouseover = () => tr.style.background = '#f8fafc';
+            tr.onmouseout = () => tr.style.background = 'transparent';
+            tr.innerHTML = `
+                <td style="padding: 16px; font-size: 0.875rem; color: var(--color-neutral-700);">${parseFloat(rate).toFixed(2)}</td>
+                <td style="padding: 16px; font-size: 0.875rem; font-weight: 600; color: var(--color-primary-900);">${code}</td>
+                <td style="padding: 16px; font-size: 0.875rem; color: var(--color-neutral-600);">${dept}</td>
+                <td style="padding: 16px;">
+                    <span style="background: ${status === 'Active' ? 'var(--color-success-50)' : 'var(--color-primary-50)'}; 
+                                 color: ${status === 'Active' ? 'var(--color-success-700)' : 'var(--color-primary-700)'}; 
+                                 padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 700; 
+                                 border: 1px solid ${status === 'Active' ? 'var(--color-success-200)' : 'var(--color-primary-200)'};">
+                        ${status}
+                    </span>
+                </td>
+                <td style="padding: 16px; text-align: right;">
+                    <div style="display: flex; justify-content: flex-end; gap: 8px;">
+                        <button class="btn-edit-inventory" style="background: #3b82f6; color: white; border: none; width: 32px; height: 32px; border-radius: 4px; cursor: pointer;" title="Edit"><i class="fas fa-edit"></i></button>
+                        <button class="btn-delete-inventory" style="background: #ef4444; color: white; border: none; width: 32px; height: 32px; border-radius: 4px; cursor: pointer;" title="Delete"><i class="fas fa-trash"></i></button>
+                    </div>
+                </td>
+            `;
+            tbody.prepend(tr);
+            
+            // Close modal and reset form
+            modal.style.display = 'none';
+            form.reset();
+            
+            // UI Feedback
+            alert('Item Code saved successfully!');
+        });
+    }
+
+    // New: Sync dropdown when modal opens to ensure latest departments are shown
+    if (btnAddItem) {
+        btnAddItem.addEventListener('click', () => {
+            updateDepartmentDropdowns();
+        });
+    }
+}
+
+function updateDepartmentDropdowns() {
+    const deptRows = document.querySelectorAll('#dept-table-body tr');
+    const departments = Array.from(deptRows).map(row => {
+        const cells = row.querySelectorAll('td');
+        return cells[1] ? cells[1].textContent.trim() : null;
+    }).filter(name => name);
+
+    const dropdown = document.getElementById('item-dept-input');
+    if (dropdown) {
+        const currentVal = dropdown.value;
+        dropdown.innerHTML = departments.map(dept => `<option value="${dept}">${dept}</option>`).join('');
+        
+        // Try to restore previous selection if it still exists
+        if (departments.includes(currentVal)) {
+            dropdown.value = currentVal;
+        }
+    }
+}
+
+async function loadInventoryData() {
+    const tbody = document.getElementById('inventory-table-body');
+    if (!tbody) return;
+
+    // Seed data matching the user's screenshot
+    const seedData = [
+        { rate: '2.80', code: '73181000L01140', dept: 'Production', status: 'Inactive' },
+        { rate: '25.00', code: '73181000L01150', dept: 'Inventory', status: 'Active' },
+        { rate: '5.00', code: '73181000L01152', dept: 'Production', status: 'Inactive' },
+        { rate: '10.00', code: '73181000L01149', dept: 'Sales', status: 'Active' },
+        { rate: '16.00', code: '73181000L01142', dept: 'Production', status: 'Active' },
+        { rate: '2.00', code: '73181000L01183', dept: 'Packaging', status: 'Inactive' },
+        { rate: '2.80', code: '73181000L01161', dept: 'Production', status: 'Active' },
+        { rate: '25.00', code: '73181000L01165', dept: 'Inventory', status: 'Inactive' },
+        { rate: '16.00', code: '73181000L01158', dept: 'Quality Control', status: 'Inactive' },
+        { rate: '5.00', code: '73181000L01156', dept: 'Production', status: 'Active' }
+    ];
+
+    tbody.innerHTML = seedData.map(item => `
+        <tr style="border-bottom: 1px solid var(--color-neutral-100); transition: background 0.2s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">
+            <td style="padding: 16px; font-size: 0.875rem; color: var(--color-neutral-700);">${parseFloat(item.rate).toFixed(2)}</td>
+            <td style="padding: 16px; font-size: 0.875rem; font-weight: 600; color: var(--color-primary-900);">${item.code}</td>
+            <td style="padding: 16px; font-size: 0.875rem; color: var(--color-neutral-600);">${item.dept}</td>
+            <td style="padding: 16px;">
+                <span style="background: ${item.status === 'Active' ? 'var(--color-success-50)' : 'var(--color-primary-50)'}; 
+                             color: ${item.status === 'Active' ? 'var(--color-success-700)' : 'var(--color-primary-700)'}; 
+                             padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 700; 
+                             border: 1px solid ${item.status === 'Active' ? 'var(--color-success-200)' : 'var(--color-primary-200)'};">
+                    ${item.status}
+                </span>
+            </td>
+            <td style="padding: 16px; text-align: right;">
+                <div style="display: flex; justify-content: flex-end; gap: 8px;">
+                    <button class="btn-edit-inventory" style="background: #3b82f6; color: white; border: none; width: 32px; height: 32px; border-radius: 4px; cursor: pointer;" title="Edit"><i class="fas fa-edit"></i></button>
+                    <button class="btn-delete-inventory" style="background: #ef4444; color: white; border: none; width: 32px; height: 32px; border-radius: 4px; cursor: pointer;" title="Delete"><i class="fas fa-trash"></i></button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+
+    const info = document.getElementById('inventory-pagination-info');
+    if (info) info.textContent = `Showing 1 to ${seedData.length} of ${seedData.length} entries`;
+}
+
+/* ---- Department Logic ---- */
+function initDept() {
+    console.log('Initializing Department Module');
+    loadDeptData();
+
+    const searchInput = document.getElementById('search-dept');
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase();
+            const rows = document.querySelectorAll('#dept-table-body tr');
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                row.style.display = text.includes(query) ? '' : 'none';
+            });
+        });
+    }
+
+    const modal = document.getElementById('modal-add-dept');
+    const btnAdd = document.getElementById('btn-add-dept');
+    const btnClose = document.getElementById('btn-close-dept-modal');
+    const form = document.getElementById('form-add-dept');
+
+    if (btnAdd && modal) {
+        btnAdd.addEventListener('click', () => {
+            modal.style.display = 'flex';
+        });
+    }
+
+    if (btnClose && modal) {
+        btnClose.addEventListener('click', () => {
+            modal.style.display = 'none';
+        });
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) modal.style.display = 'none';
+        });
+    }
+
+    if (form) {
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const name = document.getElementById('dept-name-input').value;
+            const tbody = document.getElementById('dept-table-body');
+
+            if (form.dataset.editMode === 'true' && window.currentEditDeptRow) {
+                const cells = window.currentEditDeptRow.querySelectorAll('td');
+                cells[1].textContent = name;
+                delete form.dataset.editMode;
+                window.currentEditDeptRow = null;
+                form.querySelector('button[type="submit"]').textContent = 'Create Department';
+                document.querySelector('#modal-add-dept h3').textContent = 'Create New Department';
+            } else {
+                const id = 'D-' + Math.floor(100 + Math.random() * 900);
+                const tr = document.createElement('tr');
+                tr.style.borderBottom = '1px solid var(--color-neutral-100)';
+                tr.style.transition = 'background 0.2s';
+                tr.onmouseover = () => tr.style.background = '#f8fafc';
+                tr.onmouseout = () => tr.style.background = 'transparent';
+                tr.innerHTML = `
+                    <td style="padding: 16px; font-size: 0.875rem; color: var(--color-neutral-500);">${id}</td>
+                    <td style="padding: 16px; font-size: 0.875rem; font-weight: 600; color: var(--color-primary-900);">${name}</td>
+                    <td style="padding: 16px; font-size: 0.875rem; color: var(--color-neutral-600);">0</td>
+                    <td style="padding: 16px;">
+                        <span style="background: var(--color-success-50); color: var(--color-success-700); padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 700; border: 1px solid var(--color-success-200);">Active</span>
+                    </td>
+                    <td style="padding: 16px; text-align: right;">
+                        <div style="display: flex; justify-content: flex-end; gap: 8px;">
+                            <button class="btn-edit-dept" style="background: #3b82f6; color: white; border: none; width: 32px; height: 32px; border-radius: 4px; cursor: pointer;" title="Edit"><i class="fas fa-edit"></i></button>
+                            <button class="btn-delete-dept" style="background: #ef4444; color: white; border: none; width: 32px; height: 32px; border-radius: 4px; cursor: pointer;" title="Delete"><i class="fas fa-trash"></i></button>
+                        </div>
+                    </td>
+                `;
+                tbody.prepend(tr);
+            }
+            
+            modal.style.display = 'none';
+            form.reset();
+            alert('Department saved successfully!');
+            updateDepartmentDropdowns(); // Sync dropdowns after saving a department
+        });
+    }
+
+    // Handle Edit/Delete from table
+    const tbody = document.getElementById('dept-table-body');
+    if (tbody) {
+        tbody.addEventListener('click', (e) => {
+            const editBtn = e.target.closest('.btn-edit-dept');
+            const deleteBtn = e.target.closest('.btn-delete-dept');
+
+            if (editBtn) {
+                const row = editBtn.closest('tr');
+                const name = row.querySelectorAll('td')[1].textContent;
+                
+                document.getElementById('dept-name-input').value = name;
+                form.dataset.editMode = 'true';
+                window.currentEditDeptRow = row;
+                
+                form.querySelector('button[type="submit"]').textContent = 'Update Department';
+                document.querySelector('#modal-add-dept h3').textContent = 'Edit Department';
+                modal.style.display = 'flex';
+            }
+
+            if (deleteBtn) {
+                if (confirm('Are you sure you want to delete this department?')) {
+                    deleteBtn.closest('tr').remove();
+                    updateDepartmentDropdowns(); // Sync dropdowns after deleting a department
+                }
+            }
+        });
+    }
+}
+
+async function loadDeptData() {
+    const tbody = document.getElementById('dept-table-body');
+    if (!tbody) return;
+
+    const seedDepts = [
+        { id: 'D-101', name: 'Production', employees: 45, status: 'Active' },
+        { id: 'D-102', name: 'Sales', employees: 12, status: 'Active' },
+        { id: 'D-103', name: 'Inventory', employees: 8, status: 'Active' },
+        { id: 'D-104', name: 'Quality Control', employees: 15, status: 'Active' },
+        { id: 'D-105', name: 'Packaging', employees: 20, status: 'Active' }
+    ];
+
+    tbody.innerHTML = seedDepts.map(dept => `
+        <tr style="border-bottom: 1px solid var(--color-neutral-100); transition: background 0.2s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">
+            <td style="padding: 16px; font-size: 0.875rem; color: var(--color-neutral-500);">${dept.id}</td>
+            <td style="padding: 16px; font-size: 0.875rem; font-weight: 600; color: var(--color-primary-900);">${dept.name}</td>
+            <td style="padding: 16px; font-size: 0.875rem; color: var(--color-neutral-600);">${dept.employees}</td>
+            <td style="padding: 16px;">
+                <span style="background: var(--color-success-50); color: var(--color-success-700); padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 700; border: 1px solid var(--color-success-200);">${dept.status}</span>
+            </td>
+            <td style="padding: 16px; text-align: right;">
+                <div style="display: flex; justify-content: flex-end; gap: 8px;">
+                    <button class="btn-edit-dept" style="background: #3b82f6; color: white; border: none; width: 32px; height: 32px; border-radius: 4px; cursor: pointer;" title="Edit"><i class="fas fa-edit"></i></button>
+                    <button class="btn-delete-dept" style="background: #ef4444; color: white; border: none; width: 32px; height: 32px; border-radius: 4px; cursor: pointer;" title="Delete"><i class="fas fa-trash"></i></button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+
+    updateDepartmentDropdowns(); // Initial sync after loading seed data
 }

@@ -115,10 +115,17 @@
                         <a href="#" class="nav-item sub-item" data-page="view-dc" id="nav-view-dc">View DC</a>
                     </div>
                 </div>
-                <a href="#" class="nav-item" data-page="loading-sheets" id="nav-loading-sheets">
-                    <i class="fas fa-clipboard-list"></i>
-                    <span>Loading Sheets</span>
-                </a>
+                <div class="nav-item-group" id="nav-group-loading">
+                    <a href="#" class="nav-item nav-dropdown-toggle" id="nav-loading-toggle">
+                        <i class="fas fa-clipboard-list"></i>
+                        <span>Loading Sheets</span>
+                        <i class="fas fa-chevron-down dropdown-icon"></i>
+                    </a>
+                    <div class="nav-dropdown">
+                        <a href="#" class="nav-item sub-item" data-page="add-loading-sheet" id="nav-add-loading">Add Entry</a>
+                        <a href="#" class="nav-item sub-item" data-page="loading-sheets" id="nav-view-loading">View Entry</a>
+                    </div>
+                </div>
                 <a href="#" class="nav-item" data-page="purchase-orders" id="nav-purchase-orders">
                     <i class="fas fa-cart-shopping"></i>
                     <span>Purchase Orders</span>
@@ -127,10 +134,27 @@
                     <i class="fas fa-rotate-left"></i>
                     <span>Return Delivery Challans</span>
                 </a>
-                <a href="#" class="nav-item" data-page="inventory" id="nav-inventory">
-                    <i class="fas fa-boxes-stacked"></i>
-                    <span>Inventory</span>
-                </a>
+                <div class="nav-item-group" id="nav-group-manage">
+                    <a href="#" class="nav-item nav-dropdown-toggle" id="nav-manage-toggle">
+                        <i class="fas fa-list-check"></i>
+                        <span>Manage</span>
+                        <i class="fas fa-chevron-right dropdown-icon"></i>
+                    </a>
+                    <div class="nav-dropdown">
+                        <a href="#" class="nav-item sub-item" data-page="dept" id="nav-dept">
+                            <i class="fas fa-building-user"></i>
+                            <span>Dept</span>
+                        </a>
+                        <a href="#" class="nav-item sub-item" data-page="products" id="nav-products">
+                            <i class="fas fa-box-open"></i>
+                            <span>Products</span>
+                        </a>
+                        <a href="#" class="nav-item sub-item" data-page="inventory" id="nav-inventory">
+                            <i class="fas fa-tag"></i>
+                            <span>Item Code</span>
+                        </a>
+                    </div>
+                </div>
                 <div class="nav-item-group" id="nav-group-vendors">
                     <a href="#" class="nav-item nav-dropdown-toggle" id="nav-vendors-toggle">
                         <i class="fas fa-users"></i>
@@ -829,7 +853,157 @@
                     </div>
                 </div>
 
+                <!-- Inventory Page -->
+                <div class="page" id="page-inventory">
+                    <div style="margin-bottom: 16px; display: flex; align-items: center; gap: 8px; font-size: 0.875rem; color: var(--color-neutral-500);">
+                        <span>Manage</span>
+                        <i class="fas fa-chevron-right" style="font-size: 0.75rem;"></i>
+                        <span style="color: var(--color-primary-600); font-weight: 600;">View Item Code</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 32px;">
+                        <div>
+                            <div style="font-size: 0.75rem; font-weight: 700; color: var(--color-neutral-500); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px;">Warehouse</div>
+                            <h2 style="font-size: 2.5rem; font-weight: 800; color: var(--color-primary-900); margin: 0; letter-spacing: -1px;">ITEM CODE</h2>
+                        </div>
+                        <button id="btn-add-inventory-item" class="btn-primary" style="padding: 12px 24px; font-size: 0.875rem; border-radius: 4px; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border: none; cursor: pointer;">
+                            <i class="fas fa-plus"></i> Add Item Code
+                        </button>
+                    </div>
+
+                    <!-- Inventory Table Container -->
+                    <div style="background: white; border-radius: 8px; box-shadow: var(--shadow-sm); overflow: hidden;">
+                        <div style="padding: 24px; border-bottom: 1px solid var(--color-neutral-200); display: flex; justify-content: space-between; align-items: center;">
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <span style="font-size: 0.875rem; color: var(--color-neutral-600);">Show</span>
+                                <select style="padding: 6px 12px; border: 1px solid var(--color-neutral-300); border-radius: 4px; outline: none; font-family: inherit;">
+                                    <option>10</option>
+                                    <option>25</option>
+                                    <option>50</option>
+                                </select>
+                                <span style="font-size: 0.875rem; color: var(--color-neutral-600);">entries</span>
+                            </div>
+                            <div class="search-bar" style="width: 300px; margin: 0; background: #f4f5f7; border: 1px solid var(--color-neutral-200);">
+                                <i class="fas fa-search" style="color: var(--color-neutral-500);"></i>
+                                <input type="text" id="search-inventory" placeholder="Search inventory..." style="background: transparent;">
+                            </div>
+                        </div>
+                        
+                        <div style="overflow-x: auto;">
+                            <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                                <thead>
+                                    <tr style="background: #f8fafc; border-bottom: 1px solid var(--color-neutral-200);">
+                                        <th style="padding: 16px; font-size: 0.75rem; font-weight: 700; color: var(--color-neutral-600); text-transform: uppercase;">Item Rate</th>
+                                        <th style="padding: 16px; font-size: 0.75rem; font-weight: 700; color: var(--color-neutral-600); text-transform: uppercase;">Item Code</th>
+                                        <th style="padding: 16px; font-size: 0.75rem; font-weight: 700; color: var(--color-neutral-600); text-transform: uppercase;">Dept</th>
+                                        <th style="padding: 16px; font-size: 0.75rem; font-weight: 700; color: var(--color-neutral-600); text-transform: uppercase;">Status</th>
+                                        <th style="padding: 16px; font-size: 0.75rem; font-weight: 700; color: var(--color-neutral-600); text-transform: uppercase; text-align: right;">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="inventory-table-body">
+                                    <!-- Dynamic content will be loaded here -->
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <div style="padding: 16px 24px; border-top: 1px solid var(--color-neutral-200); display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-size: 0.875rem; color: var(--color-neutral-600);" id="inventory-pagination-info">Showing 0 to 0 of 0 entries</span>
+                            <div style="display: flex; gap: 4px;" id="inventory-pagination-btns">
+                                <button style="padding: 6px 12px; border: 1px solid var(--color-neutral-300); background: white; color: var(--color-neutral-400); border-radius: 4px; font-size: 0.875rem; cursor: not-allowed;">Previous</button>
+                                <button style="padding: 6px 12px; border: none; background: var(--color-primary-600); color: white; border-radius: 4px; font-size: 0.875rem; font-weight: 600; cursor: pointer;">1</button>
+                                <button style="padding: 6px 12px; border: 1px solid var(--color-neutral-300); background: white; color: var(--color-neutral-400); border-radius: 4px; font-size: 0.875rem; cursor: not-allowed;">Next</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Dept Page -->
+                <div class="page" id="page-dept">
+                    <div style="margin-bottom: 16px; display: flex; align-items: center; gap: 8px; font-size: 0.875rem; color: var(--color-neutral-500);">
+                        <span>Manage</span>
+                        <i class="fas fa-chevron-right" style="font-size: 0.75rem;"></i>
+                        <span style="color: var(--color-primary-600); font-weight: 600;">Departments</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 32px;">
+                        <div>
+                            <div style="font-size: 0.75rem; font-weight: 700; color: var(--color-neutral-500); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px;">Organization</div>
+                            <h2 style="font-size: 2.5rem; font-weight: 800; color: var(--color-primary-900); margin: 0; letter-spacing: -1px;">DEPARTMENTS</h2>
+                        </div>
+                        <button id="btn-add-dept" class="btn-primary" style="padding: 12px 24px; font-size: 0.875rem; border-radius: 4px; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border: none; cursor: pointer;">
+                            <i class="fas fa-plus"></i> Add Department
+                        </button>
+                    </div>
+                    
+                    <div style="background: white; border-radius: 8px; box-shadow: var(--shadow-sm); overflow: hidden;">
+                        <div style="padding: 24px; border-bottom: 1px solid var(--color-neutral-200); display: flex; justify-content: space-between; align-items: center;">
+                            <h3 style="margin: 0; font-size: 1.125rem; color: var(--color-primary-900);">Active Departments</h3>
+                            <div class="search-bar" style="width: 250px; margin: 0; background: #f4f5f7; border: 1px solid var(--color-neutral-200);">
+                                <i class="fas fa-search" style="color: var(--color-neutral-500);"></i>
+                                <input type="text" id="search-dept" placeholder="Search departments..." style="background: transparent;">
+                            </div>
+                        </div>
+                        <div style="overflow-x: auto;">
+                            <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                                <thead>
+                                    <tr style="background: #f8fafc; border-bottom: 1px solid var(--color-neutral-200);">
+                                        <th style="padding: 16px; font-size: 0.75rem; font-weight: 700; color: var(--color-neutral-600); text-transform: uppercase;">ID</th>
+                                        <th style="padding: 16px; font-size: 0.75rem; font-weight: 700; color: var(--color-neutral-600); text-transform: uppercase;">Department Name</th>
+                                        <th style="padding: 16px; font-size: 0.75rem; font-weight: 700; color: var(--color-neutral-600); text-transform: uppercase;">Employees</th>
+                                        <th style="padding: 16px; font-size: 0.75rem; font-weight: 700; color: var(--color-neutral-600); text-transform: uppercase;">Status</th>
+                                        <th style="padding: 16px; font-size: 0.75rem; font-weight: 700; color: var(--color-neutral-600); text-transform: uppercase; text-align: right;">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="dept-table-body">
+                                    <!-- Dynamic content -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Add Department Modal -->
+                <div id="modal-add-dept" class="modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 2000; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
+                    <div style="background: white; width: 400px; border-radius: 12px; box-shadow: var(--shadow-lg); overflow: hidden; animation: modalSlideUp 0.3s ease;">
+                        <div style="padding: 20px; background: var(--color-primary-900); color: white; display: flex; justify-content: space-between; align-items: center;">
+                            <h3 style="margin: 0; font-size: 1.125rem;">Create New Department</h3>
+                            <button id="btn-close-dept-modal" style="background: transparent; border: none; color: white; cursor: pointer; font-size: 1.25rem;"><i class="fas fa-times"></i></button>
+                        </div>
+                        <form id="form-add-dept" style="padding: 24px;">
+                            <div style="margin-bottom: 20px;">
+                                <label style="display: block; font-size: 0.875rem; font-weight: 600; color: var(--color-neutral-700); margin-bottom: 8px;">Department Name</label>
+                                <input type="text" id="dept-name-input" required placeholder="e.g. Production" style="width: 100%; padding: 12px; border: 1px solid var(--color-neutral-200); border-radius: 8px; font-family: inherit; outline: none; transition: 0.2s;" onfocus="this.style.borderColor='var(--color-primary-400)'; this.style.boxShadow='0 0 0 3px var(--color-primary-50)'" onblur="this.style.borderColor='var(--color-neutral-200)'; this.style.boxShadow='none'">
+                            </div>
+                            <button type="submit" style="width: 100%; padding: 14px; background: var(--color-primary-900); color: white; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; transition: 0.2s;" onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)'" onmouseout="this.style.transform='none'; this.style.boxShadow='none'">
+                                Create Department
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Products Page -->
+                <div class="page" id="page-products">
+                    <div style="margin-bottom: 16px; display: flex; align-items: center; gap: 8px; font-size: 0.875rem; color: var(--color-neutral-500);">
+                        <span>Manage</span>
+                        <i class="fas fa-chevron-right" style="font-size: 0.75rem;"></i>
+                        <span style="color: var(--color-primary-600); font-weight: 600;">Products</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 32px;">
+                        <div>
+                            <div style="font-size: 0.75rem; font-weight: 700; color: var(--color-neutral-500); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px;">Catalog</div>
+                            <h2 style="font-size: 2.5rem; font-weight: 800; color: var(--color-primary-900); margin: 0; letter-spacing: -1px;">PRODUCTS</h2>
+                        </div>
+                        <button class="btn-primary" style="padding: 12px 24px; font-size: 0.875rem; border-radius: 4px; display: flex; align-items: center; gap: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border: none; cursor: pointer;">
+                            <i class="fas fa-plus"></i> Add Product
+                        </button>
+                    </div>
+                    <div style="background: white; border-radius: 12px; padding: 48px; text-align: center; box-shadow: var(--shadow-sm);">
+                        <i class="fas fa-box-open" style="font-size: 4rem; color: var(--color-neutral-200); margin-bottom: 24px;"></i>
+                        <h3 style="color: var(--color-neutral-700); margin-bottom: 8px;">Product Management Coming Soon</h3>
+                        <p style="color: var(--color-neutral-500);">This module is under development.</p>
+                    </div>
+                </div>
+
                 <!-- Vendors Page -->
+
                 <div class="page" id="page-vendors">
                     <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 32px;">
                         <div>
@@ -1339,6 +1513,233 @@
                     </div>
                 </div>
 
+                <!-- Add Loading Sheet Page -->
+                <div class="page" id="page-add-loading-sheet">
+                    <div style="margin-bottom: 24px; display: flex; justify-content: space-between; align-items: center;">
+                        <h2 style="font-size: 1.25rem; font-weight: 700; color: var(--color-neutral-800); margin: 0; text-transform: uppercase;">Add Entry</h2>
+                        <div style="font-size: 0.875rem; color: var(--color-neutral-500);">Entry <i class="fas fa-chevron-right" style="font-size: 0.75rem; margin: 0 8px;"></i> <span style="color: var(--color-neutral-400);">Add Entry</span></div>
+                    </div>
+
+                    <!-- Main Container -->
+                    <div style="display: flex; flex-direction: column; gap: 20px;">
+                        
+                        <!-- Header Form Card -->
+                        <div style="background: white; border-radius: 8px; box-shadow: var(--shadow-sm); padding: 24px;">
+                            <div style="display: grid; grid-template-columns: 1.5fr 1.5fr 1fr 1fr 1fr 1fr 1.2fr; gap: 16px; align-items: flex-end;">
+                                <div class="form-group">
+                                    <label style="display: block; font-size: 0.875rem; font-weight: 600; color: var(--color-neutral-700); margin-bottom: 8px;">DC No</label>
+                                    <div style="display: flex; gap: 4px;">
+                                        <input type="text" id="header-dc-no" class="form-control" style="flex: 1; padding: 10px 12px; border: 1px solid var(--color-neutral-200); border-radius: 4px; outline: none;">
+                                        <button id="btn-edit-dc-no" style="background: #3b82f6; color: white; border: none; padding: 0 12px; border-radius: 4px; cursor: pointer; transition: 0.2s;" title="Load DC"><i class="fas fa-search"></i></button>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label style="display: block; font-size: 0.875rem; font-weight: 600; color: var(--color-neutral-700); margin-bottom: 8px;">Date</label>
+                                    <input type="date" id="header-date" class="form-control" value="2026-04-25" style="width: 100%; padding: 10px 12px; border: 1px solid var(--color-neutral-200); border-radius: 4px; outline: none;">
+                                </div>
+                                <div>
+                                    <button id="btn-submit-preview-loading" style="background: #5c4eb4; color: white; border: none; padding: 12px 16px; border-radius: 4px; font-weight: 600; font-size: 0.875rem; cursor: pointer; width: 100%; transition: background 0.2s;" onmouseover="this.style.background='#4a3da0'" onmouseout="this.style.background='#5c4eb4'">Submit & Preview</button>
+                                </div>
+                                <div class="form-group">
+                                    <label style="display: block; font-size: 0.875rem; font-weight: 600; color: var(--color-neutral-700); margin-bottom: 8px;">Total NOS</label>
+                                    <input type="text" id="header-total-nos" class="form-control" readonly value="0" style="width: 100%; padding: 10px 12px; border: 1px solid var(--color-neutral-200); border-radius: 4px; background: #fafafa; text-align: center;">
+                                </div>
+                                <div class="form-group">
+                                    <label style="display: block; font-size: 0.875rem; font-weight: 600; color: var(--color-neutral-700); margin-bottom: 8px;">Total Cutting</label>
+                                    <input type="text" id="header-total-cutting" class="form-control" readonly value="0" style="width: 100%; padding: 10px 12px; border: 1px solid var(--color-neutral-200); border-radius: 4px; background: #fafafa; text-align: center;">
+                                </div>
+                                <div class="form-group">
+                                    <label style="display: block; font-size: 0.875rem; font-weight: 600; color: var(--color-neutral-700); margin-bottom: 8px;">Total Rate</label>
+                                    <input type="text" id="header-total-rate" class="form-control" readonly value="0" style="width: 100%; padding: 10px 12px; border: 1px solid var(--color-neutral-200); border-radius: 4px; background: #fafafa; text-align: center;">
+                                </div>
+                                <div class="form-group">
+                                    <label style="display: block; font-size: 0.875rem; font-weight: 600; color: var(--color-neutral-700); margin-bottom: 8px;">Grand Total</label>
+                                    <input type="text" id="header-grand-total" class="form-control" readonly value="0" style="width: 100%; padding: 10px 12px; border: 1px solid var(--color-neutral-200); border-radius: 4px; background: #fafafa; text-align: center; font-weight: 700;">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Item Entry Card -->
+                        <div style="background: white; border-radius: 8px; box-shadow: var(--shadow-sm); padding: 24px;">
+                            <div style="display: grid; grid-template-columns: 1.5fr 1fr 1.5fr 2fr 0.8fr 0.8fr 0.8fr 0.8fr 0.6fr; gap: 12px; align-items: flex-end;">
+                                <div class="form-group">
+                                    <label style="display: block; font-size: 0.75rem; font-weight: 700; color: var(--color-neutral-600); text-transform: uppercase; margin-bottom: 6px;">Customer Name</label>
+                                    <input type="text" id="item-customer" placeholder="Customer Name" style="width: 100%; padding: 10px; border: 1px solid var(--color-neutral-200); border-radius: 4px; outline: none; font-size: 0.875rem;">
+                                </div>
+                                <div class="form-group">
+                                    <label style="display: block; font-size: 0.75rem; font-weight: 700; color: var(--color-neutral-600); text-transform: uppercase; margin-bottom: 6px;">Item No</label>
+                                    <input type="text" id="item-no" placeholder="Item No" style="width: 100%; padding: 10px; border: 1px solid var(--color-neutral-200); border-radius: 4px; outline: none; font-size: 0.875rem;">
+                                </div>
+                                <div class="form-group">
+                                    <label style="display: block; font-size: 0.75rem; font-weight: 700; color: var(--color-neutral-600); text-transform: uppercase; margin-bottom: 6px;">Item Name</label>
+                                    <input type="text" id="item-name" placeholder="Item Name" style="width: 100%; padding: 10px; border: 1px solid var(--color-neutral-200); border-radius: 4px; outline: none; font-size: 0.875rem;">
+                                </div>
+                                <div class="form-group">
+                                    <label style="display: block; font-size: 0.75rem; font-weight: 700; color: var(--color-neutral-600); text-transform: uppercase; margin-bottom: 6px;">Serial No <span style="color: #ef4444;">*</span></label>
+                                    <textarea id="item-serial" placeholder="Serial No" style="width: 100%; padding: 10px; border: 1px solid var(--color-neutral-200); border-radius: 4px; outline: none; font-size: 0.875rem; height: 42px; resize: none;"></textarea>
+                                </div>
+                                <div class="form-group">
+                                    <label style="display: block; font-size: 0.75rem; font-weight: 700; color: var(--color-neutral-600); text-transform: uppercase; margin-bottom: 6px;">NOS <span style="color: #ef4444;">*</span></label>
+                                    <input type="number" id="item-nos" placeholder="NOS" style="width: 100%; padding: 10px; border: 1px solid var(--color-neutral-200); border-radius: 4px; outline: none; font-size: 0.875rem;">
+                                </div>
+                                <div class="form-group">
+                                    <label style="display: block; font-size: 0.75rem; font-weight: 700; color: var(--color-neutral-600); text-transform: uppercase; margin-bottom: 6px;">Cutting <span style="color: #ef4444;">*</span></label>
+                                    <input type="number" id="item-cutting" value="1" style="width: 100%; padding: 10px; border: 1px solid var(--color-neutral-200); border-radius: 4px; outline: none; font-size: 0.875rem;">
+                                </div>
+                                <div class="form-group">
+                                    <label style="display: block; font-size: 0.75rem; font-weight: 700; color: var(--color-neutral-600); text-transform: uppercase; margin-bottom: 6px;">Rate <span style="color: #ef4444;">*</span></label>
+                                    <input type="number" id="item-rate" placeholder="Rate" style="width: 100%; padding: 10px; border: 1px solid var(--color-neutral-200); border-radius: 4px; outline: none; font-size: 0.875rem;">
+                                </div>
+                                <div class="form-group">
+                                    <label style="display: block; font-size: 0.75rem; font-weight: 700; color: var(--color-neutral-600); text-transform: uppercase; margin-bottom: 6px;">Total</label>
+                                    <input type="number" id="item-total" readonly placeholder="Total" style="width: 100%; padding: 10px; border: 1px solid var(--color-neutral-200); border-radius: 4px; outline: none; font-size: 0.875rem; background: #fafafa;">
+                                </div>
+                                <div style="margin-bottom: 2px;">
+                                    <button id="btn-add-item-loading" style="background: #3b82f6; color: white; border: none; padding: 12px; border-radius: 4px; font-weight: 600; font-size: 0.875rem; cursor: pointer; width: 100%; transition: background 0.2s;" onmouseover="this.style.background='#2563eb'" onmouseout="this.style.background='#3b82f6'">Add</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Items Table Card -->
+                        <div style="background: white; border-radius: 8px; box-shadow: var(--shadow-sm); overflow: hidden;">
+                            <table style="width: 100%; border-collapse: collapse;">
+                                <thead>
+                                    <tr style="background: #f8fafc; border-bottom: 1px solid var(--color-neutral-200);">
+                                        <th style="padding: 12px 16px; font-size: 0.875rem; font-weight: 700; color: var(--color-neutral-800); text-align: left;">Customer Name</th>
+                                        <th style="padding: 12px 16px; font-size: 0.875rem; font-weight: 700; color: var(--color-neutral-800); text-align: left;">Item No</th>
+                                        <th style="padding: 12px 16px; font-size: 0.875rem; font-weight: 700; color: var(--color-neutral-800); text-align: left;">Item Name</th>
+                                        <th style="padding: 12px 16px; font-size: 0.875rem; font-weight: 700; color: var(--color-neutral-800); text-align: left;">Serial No</th>
+                                        <th style="padding: 12px 16px; font-size: 0.875rem; font-weight: 700; color: var(--color-neutral-800); text-align: center;">NOS</th>
+                                        <th style="padding: 12px 16px; font-size: 0.875rem; font-weight: 700; color: var(--color-neutral-800); text-align: center;">Cutting</th>
+                                        <th style="padding: 12px 16px; font-size: 0.875rem; font-weight: 700; color: var(--color-neutral-800); text-align: center;">Rate</th>
+                                        <th style="padding: 12px 16px; font-size: 0.875rem; font-weight: 700; color: var(--color-neutral-800); text-align: center;">Total</th>
+                                        <th style="padding: 12px 16px; font-size: 0.875rem; font-weight: 700; color: var(--color-neutral-800); text-align: right;">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="entry-items-table-body">
+                                    <tr id="entry-empty-row">
+                                        <td colspan="9" style="padding: 40px; text-align: center; color: var(--color-neutral-400);">
+                                            No items added yet.
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Loading Sheets Page -->
+
+                <!-- Loading Sheets Page -->
+                <div class="page" id="page-loading-sheets">
+                    <div style="margin-bottom: 32px; display: flex; justify-content: space-between; align-items: flex-end;">
+                        <div>
+                            <div style="font-size: 0.75rem; font-weight: 700; color: var(--color-neutral-500); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px;">Logistics</div>
+                            <h2 style="font-size: 2.5rem; font-weight: 800; color: var(--color-primary-900); margin: 0; letter-spacing: -1px;">Loading Sheets</h2>
+                        </div>
+                        <button class="btn-primary" style="padding: 12px 24px; border-radius: 8px; font-weight: 700; display: flex; align-items: center; gap: 8px; background: var(--color-primary-900); color: white; border: none; cursor: pointer;" id="btn-add-loading-sheet">
+                            <i class="fas fa-plus"></i> Add Entry
+                        </button>
+                    </div>
+
+                    <div style="background: white; border-radius: 12px; box-shadow: var(--shadow-sm); overflow: hidden;">
+                        <div style="padding: 24px; border-bottom: 1px solid var(--color-neutral-200); display: flex; justify-content: space-between; align-items: center;">
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <span style="font-size: 0.875rem; color: var(--color-neutral-600);">Show</span>
+                                <select style="padding: 6px 12px; border: 1px solid var(--color-neutral-200); border-radius: 6px; font-size: 0.875rem;" id="show-entries-loading">
+                                    <option>10</option>
+                                    <option>25</option>
+                                    <option>50</option>
+                                </select>
+                                <span style="font-size: 0.875rem; color: var(--color-neutral-600);">entries</span>
+                            </div>
+                            <div style="position: relative;">
+                                <i class="fas fa-search" style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--color-neutral-400); font-size: 0.875rem;"></i>
+                                <input type="text" placeholder="Search loading sheets..." id="search-loading-sheets" style="padding: 10px 12px 10px 36px; border: 1px solid var(--color-neutral-200); border-radius: 8px; font-size: 0.875rem; width: 280px; outline: none; transition: 0.2s;" onfocus="this.style.borderColor='var(--color-primary-400)'; this.style.boxShadow='0 0 0 3px var(--color-primary-50)'" onblur="this.style.borderColor='var(--color-neutral-200)'; this.style.boxShadow='none'">
+                            </div>
+                        </div>
+
+                        <div style="overflow-x: auto;">
+                            <table style="width: 100%; border-collapse: collapse; min-width: 1000px;">
+                                <thead>
+                                    <tr style="background: #f8fafc; border-bottom: 1px solid var(--color-neutral-200);">
+                                        <th style="padding: 16px; width: 40px; text-align: center;"><input type="checkbox" id="select-all-loading"></th>
+                                        <th style="padding: 16px; font-size: 0.75rem; font-weight: 700; color: var(--color-neutral-600); text-transform: uppercase; text-align: left;">DC No</th>
+                                        <th style="padding: 16px; font-size: 0.75rem; font-weight: 700; color: var(--color-neutral-600); text-transform: uppercase; text-align: left;">Date</th>
+                                        <th style="padding: 16px; font-size: 0.75rem; font-weight: 700; color: var(--color-neutral-600); text-transform: uppercase; text-align: left;">Total NOS</th>
+                                        <th style="padding: 16px; font-size: 0.75rem; font-weight: 700; color: var(--color-neutral-600); text-transform: uppercase; text-align: left;">Total Cutting</th>
+                                        <th style="padding: 16px; font-size: 0.75rem; font-weight: 700; color: var(--color-neutral-600); text-transform: uppercase; text-align: left;">Total Rate</th>
+                                        <th style="padding: 16px; font-size: 0.75rem; font-weight: 700; color: var(--color-neutral-600); text-transform: uppercase; text-align: left;">Sum Total</th>
+                                        <th style="padding: 16px; font-size: 0.75rem; font-weight: 700; color: var(--color-neutral-600); text-transform: uppercase; text-align: right;">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="loading-sheets-table-body">
+                                    <!-- Seed data matching the example image -->
+                                    <tr style="border-bottom: 1px solid var(--color-neutral-100); transition: background 0.2s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">
+                                        <td style="padding: 16px; text-align: center;"><input type="checkbox"></td>
+                                        <td style="padding: 16px; font-size: 0.875rem; font-weight: 600; color: var(--color-neutral-800);">158</td>
+                                        <td style="padding: 16px; font-size: 0.875rem; color: var(--color-neutral-600);">2026-04-25</td>
+                                        <td style="padding: 16px; font-size: 0.875rem; color: var(--color-neutral-800);">887</td>
+                                        <td style="padding: 16px; font-size: 0.875rem; color: var(--color-neutral-800);">30.00</td>
+                                        <td style="padding: 16px; font-size: 0.875rem; color: var(--color-neutral-800);">345.00</td>
+                                        <td style="padding: 16px; font-size: 0.875rem; font-weight: 700; color: var(--color-primary-900);">11495.00</td>
+                                        <td style="padding: 16px; text-align: right;">
+                                            <div style="display: flex; justify-content: flex-end; gap: 8px;">
+                                                <button class="btn-icon" style="background: var(--color-primary-500); color: white; border: none; width: 32px; height: 32px; border-radius: 4px; cursor: pointer;" title="Print"><i class="fas fa-print"></i></button>
+                                                <button class="btn-icon" style="background: #3b82f6; color: white; border: none; width: 32px; height: 32px; border-radius: 4px; cursor: pointer;" title="Edit"><i class="fas fa-edit"></i></button>
+                                                <button class="btn-primary" style="padding: 6px 12px; font-size: 0.75rem; border-radius: 4px; background: var(--color-primary-900); color: white; border: none; cursor: pointer;">View</button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr style="border-bottom: 1px solid var(--color-neutral-100); transition: background 0.2s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">
+                                        <td style="padding: 16px; text-align: center;"><input type="checkbox"></td>
+                                        <td style="padding: 16px; font-size: 0.875rem; font-weight: 600; color: var(--color-neutral-800);">154</td>
+                                        <td style="padding: 16px; font-size: 0.875rem; color: var(--color-neutral-600);">2026-04-24</td>
+                                        <td style="padding: 16px; font-size: 0.875rem; color: var(--color-neutral-800);">2989</td>
+                                        <td style="padding: 16px; font-size: 0.875rem; color: var(--color-neutral-800);">145.00</td>
+                                        <td style="padding: 16px; font-size: 0.875rem; color: var(--color-neutral-800);">448.00</td>
+                                        <td style="padding: 16px; font-size: 0.875rem; font-weight: 700; color: var(--color-primary-900);">32648.00</td>
+                                        <td style="padding: 16px; text-align: right;">
+                                            <div style="display: flex; justify-content: flex-end; gap: 8px;">
+                                                <button class="btn-icon" style="background: var(--color-primary-500); color: white; border: none; width: 32px; height: 32px; border-radius: 4px; cursor: pointer;" title="Print"><i class="fas fa-print"></i></button>
+                                                <button class="btn-icon" style="background: #3b82f6; color: white; border: none; width: 32px; height: 32px; border-radius: 4px; cursor: pointer;" title="Edit"><i class="fas fa-edit"></i></button>
+                                                <button class="btn-primary" style="padding: 6px 12px; font-size: 0.75rem; border-radius: 4px; background: var(--color-primary-900); color: white; border: none; cursor: pointer;">View</button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr style="border-bottom: 1px solid var(--color-neutral-100); transition: background 0.2s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">
+                                        <td style="padding: 16px; text-align: center;"><input type="checkbox"></td>
+                                        <td style="padding: 16px; font-size: 0.875rem; font-weight: 600; color: var(--color-neutral-800);">150</td>
+                                        <td style="padding: 16px; font-size: 0.875rem; color: var(--color-neutral-600);">2026-04-22</td>
+                                        <td style="padding: 16px; font-size: 0.875rem; color: var(--color-neutral-800);">420</td>
+                                        <td style="padding: 16px; font-size: 0.875rem; color: var(--color-neutral-800);">1.00</td>
+                                        <td style="padding: 16px; font-size: 0.875rem; color: var(--color-neutral-800);">10.00</td>
+                                        <td style="padding: 16px; font-size: 0.875rem; font-weight: 700; color: var(--color-primary-900);">4200.00</td>
+                                        <td style="padding: 16px; text-align: right;">
+                                            <div style="display: flex; justify-content: flex-end; gap: 8px;">
+                                                <button class="btn-icon" style="background: var(--color-primary-500); color: white; border: none; width: 32px; height: 32px; border-radius: 4px; cursor: pointer;" title="Print"><i class="fas fa-print"></i></button>
+                                                <button class="btn-icon" style="background: #3b82f6; color: white; border: none; width: 32px; height: 32px; border-radius: 4px; cursor: pointer;" title="Edit"><i class="fas fa-edit"></i></button>
+                                                <button class="btn-primary" style="padding: 6px 12px; font-size: 0.75rem; border-radius: 4px; background: var(--color-primary-900); color: white; border: none; cursor: pointer;">View</button>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div style="padding: 16px 24px; border-top: 1px solid var(--color-neutral-200); display: flex; justify-content: space-between; align-items: center;">
+                            <span style="font-size: 0.875rem; color: var(--color-neutral-600);" id="pagination-info-loading">Showing 1 to 3 of 431 entries</span>
+                            <div style="display: flex; gap: 4px;" id="pagination-btns-loading">
+                                <button style="padding: 6px 12px; border: 1px solid var(--color-neutral-300); background: white; color: var(--color-neutral-400); border-radius: 4px; font-size: 0.875rem; cursor: not-allowed;">Previous</button>
+                                <button style="padding: 6px 12px; border: none; background: var(--color-primary-600); color: white; border-radius: 4px; font-size: 0.875rem; font-weight: 600; cursor: pointer;">1</button>
+                                <button style="padding: 6px 12px; border: 1px solid var(--color-neutral-300); background: white; color: var(--color-neutral-700); border-radius: 4px; font-size: 0.875rem; cursor: pointer;">2</button>
+                                <button style="padding: 6px 12px; border: 1px solid var(--color-neutral-300); background: white; color: var(--color-neutral-700); border-radius: 4px; font-size: 0.875rem; cursor: pointer;">3</button>
+                                <button style="padding: 6px 12px; border: 1px solid var(--color-neutral-300); background: white; color: var(--color-neutral-700); border-radius: 4px; font-size: 0.875rem; cursor: pointer;">Next</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- View DC Page -->
                 <div class="page" id="page-view-dc">
                     <div style="margin-bottom: 32px; display: flex; justify-content: space-between; align-items: flex-end;">
@@ -1396,7 +1797,58 @@
         </main>
     </div>
 
+    <!-- Add Item Code Modal -->
+    <div id="modal-add-item" class="modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 2000; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
+        <div style="background: white; width: 450px; border-radius: 12px; box-shadow: var(--shadow-lg); overflow: hidden; animation: modalSlideUp 0.3s ease;">
+            <div style="padding: 24px; background: var(--color-primary-900); color: white; display: flex; justify-content: space-between; align-items: center;">
+                <h3 style="margin: 0; font-size: 1.25rem;">Add New Item Code</h3>
+                <button id="btn-close-item-modal" style="background: transparent; border: none; color: white; cursor: pointer; font-size: 1.5rem;"><i class="fas fa-times"></i></button>
+            </div>
+            <form id="form-add-item" style="padding: 24px;">
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-size: 0.875rem; font-weight: 600; color: var(--color-neutral-700); margin-bottom: 8px;">Item Code</label>
+                    <input type="text" id="item-code-input" required placeholder="e.g. 73181000L01140" style="width: 100%; padding: 12px; border: 1px solid var(--color-neutral-200); border-radius: 8px; font-family: inherit; outline: none; transition: 0.2s;" onfocus="this.style.borderColor='var(--color-primary-400)'; this.style.boxShadow='0 0 0 3px var(--color-primary-50)'" onblur="this.style.borderColor='var(--color-neutral-200)'; this.style.boxShadow='none'">
+                </div>
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-size: 0.875rem; font-weight: 600; color: var(--color-neutral-700); margin-bottom: 8px;">Item Rate</label>
+                    <div style="position: relative;">
+                        <span style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--color-neutral-400);">$</span>
+                        <input type="number" step="0.01" id="item-rate-input" required placeholder="0.00" style="width: 100%; padding: 12px 12px 12px 30px; border: 1px solid var(--color-neutral-200); border-radius: 8px; font-family: inherit; outline: none; transition: 0.2s;" onfocus="this.style.borderColor='var(--color-primary-400)'; this.style.boxShadow='0 0 0 3px var(--color-primary-50)'" onblur="this.style.borderColor='var(--color-neutral-200)'; this.style.boxShadow='none'">
+                    </div>
+                </div>
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-size: 0.875rem; font-weight: 600; color: var(--color-neutral-700); margin-bottom: 8px;">Department</label>
+                    <select id="item-dept-input" style="width: 100%; padding: 12px; border: 1px solid var(--color-neutral-200); border-radius: 8px; font-family: inherit; outline: none; appearance: none; background: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%2364748b%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E') no-repeat right 12px center; background-size: 12px; transition: 0.2s;" onfocus="this.style.borderColor='var(--color-primary-400)'; this.style.boxShadow='0 0 0 3px var(--color-primary-50)'" onblur="this.style.borderColor='var(--color-neutral-200)'; this.style.boxShadow='none'">
+                        <option value="Production">Production</option>
+                        <option value="Sales">Sales</option>
+                        <option value="Inventory">Inventory</option>
+                        <option value="Quality Control">Quality Control</option>
+                        <option value="Packaging">Packaging</option>
+                    </select>
+                </div>
+                <div style="margin-bottom: 24px;">
+                    <label style="display: block; font-size: 0.875rem; font-weight: 600; color: var(--color-neutral-700); margin-bottom: 8px;">Status</label>
+                    <select id="item-status-input" style="width: 100%; padding: 12px; border: 1px solid var(--color-neutral-200); border-radius: 8px; font-family: inherit; outline: none; appearance: none; background: url('data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%2364748b%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E') no-repeat right 12px center; background-size: 12px; transition: 0.2s;" onfocus="this.style.borderColor='var(--color-primary-400)'; this.style.boxShadow='0 0 0 3px var(--color-primary-50)'" onblur="this.style.borderColor='var(--color-neutral-200)'; this.style.boxShadow='none'">
+                        <option value="Active">Active</option>
+                        <option value="Inactive">Inactive</option>
+                    </select>
+                </div>
+                <button type="submit" style="width: 100%; padding: 14px; background: var(--color-primary-900); color: white; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; transition: 0.2s;" onmouseover="this.style.transform='translateY(-1px)'; this.style.boxShadow='0 4px 12px rgba(0,0,0,0.1)'" onmouseout="this.style.transform='none'; this.style.boxShadow='none'">
+                    Save Item Code
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <style>
+        @keyframes modalSlideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
     <script src="js/app.js"></script>
 </body>
 </html>
