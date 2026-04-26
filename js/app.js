@@ -8,6 +8,14 @@
 // For production: 'https://your-backend.vercel.app'
 const API_BASE = 'http://localhost:3000';
 
+// --- DC Numbering Helper ---
+function getNextDCNo() {
+    const sequence = parseInt(localStorage.getItem('invoice_flow_dc_sequence') || '1');
+    const fy = "26/27"; 
+    const paddedSeq = sequence.toString().padStart(3, '0');
+    return `${paddedSeq} - ${fy}`;
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     console.log('DOM Content Loaded - Initializing App');
     const initFunctions = [
@@ -20,7 +28,10 @@ document.addEventListener('DOMContentLoaded', () => {
         { name: 'LoadingSheets', fn: typeof initLoadingSheets !== 'undefined' ? initLoadingSheets : null },
         { name: 'Inventory', fn: typeof initInventory !== 'undefined' ? initInventory : null },
         { name: 'Dept', fn: typeof initDept !== 'undefined' ? initDept : null },
-        { name: 'RDC', fn: typeof initRDC !== 'undefined' ? initRDC : null }
+        { name: 'Products', fn: typeof initProducts !== 'undefined' ? initProducts : null },
+        { name: 'Customers', fn: typeof initCustomers !== 'undefined' ? initCustomers : null },
+        { name: 'RDC', fn: typeof initRDC !== 'undefined' ? initRDC : null },
+        { name: 'ClosedItems', fn: typeof initClosedItems !== 'undefined' ? initClosedItems : null }
     ];
 
     initFunctions.forEach(m => {
@@ -218,7 +229,7 @@ function formatCurrency(value) {
 
 /* ---- Navigation ---- */
 function initNavigation() {
-    const navItems = document.querySelectorAll('.sidebar-nav .nav-item:not(.nav-dropdown-toggle)');
+    const navItems = document.querySelectorAll('.nav-item[data-page]');
     const dropdownToggles = document.querySelectorAll('.nav-dropdown-toggle');
     const searchInput = document.getElementById('search-input');
 
@@ -229,6 +240,7 @@ function initNavigation() {
         'loading-sheets': 'Search loading sheets...',
         'purchase-orders': 'Search purchase orders...',
         'return-delivery': 'Search return challans...',
+        'manage': 'Search master data...',
         'inventory': 'Search inventory...',
         'dept': 'Search departments...',
         'products': 'Search products...',
@@ -272,9 +284,22 @@ function initNavigation() {
                 targetPage.classList.add('active');
             }
 
-            // Update search placeholder
             if (searchInput && searchPlaceholders[pageName]) {
                 searchInput.placeholder = searchPlaceholders[pageName];
+            }
+
+            // Refresh Closed Items if navigating there
+            if ((pageName === 'closed-rdc' || pageName === 'closed-po') && typeof window.refreshClosedItems === 'function') {
+                window.refreshClosedItems();
+            }
+
+            // Reset DC No if creating new
+            if (pageName === 'add-dc') {
+                const dcNoInput = document.getElementById('dc-number-input');
+                const form = document.getElementById('form-add-dc');
+                if (dcNoInput && (!form.dataset.editMode || form.dataset.editMode !== 'true')) {
+                    dcNoInput.value = getNextDCNo();
+                }
             }
         });
     });
@@ -865,32 +890,171 @@ function initDCForm() {
     if (!form || !btnAddRow || !tbody) return;
 
     // Handle adding new row
-    btnAddRow.addEventListener('click', () => {
-        const newRow = document.createElement('tr');
-        newRow.style.borderBottom = '1px solid var(--color-neutral-100)';
-        newRow.innerHTML = `
-            <td style="padding: 8px;"><input type="text" style="width: 100%; padding: 8px; border: 1px solid var(--color-neutral-200); border-radius: 4px;"></td>
-            <td style="padding: 8px;"><input type="text" style="width: 100%; padding: 8px; border: 1px solid var(--color-neutral-200); border-radius: 4px;"></td>
-            <td style="padding: 8px;"><input type="number" style="width: 100%; padding: 8px; border: 1px solid var(--color-neutral-200); border-radius: 4px;"></td>
-            <td style="padding: 8px;"><input type="text" style="width: 100%; padding: 8px; border: 1px solid var(--color-neutral-200); border-radius: 4px;"></td>
-            <td style="padding: 8px;"><input type="text" style="width: 100%; padding: 8px; border: 1px solid var(--color-neutral-200); border-radius: 4px;"></td>
-            <td style="padding: 8px;"><input type="text" style="width: 100%; padding: 8px; border: 1px solid var(--color-neutral-200); border-radius: 4px;"></td>
-            <td style="padding: 8px;"><input type="number" style="width: 100%; padding: 8px; border: 1px solid var(--color-neutral-200); border-radius: 4px;"></td>
-            <td style="padding: 8px;"><input type="number" style="width: 100%; padding: 8px; border: 1px solid var(--color-neutral-200); border-radius: 4px;"></td>
-            <td style="padding: 8px;"><input type="number" style="width: 100%; padding: 8px; border: 1px solid var(--color-neutral-200); border-radius: 4px;"></td>
-            <td style="padding: 8px;"><input type="text" style="width: 100%; padding: 8px; border: 1px solid var(--color-neutral-200); border-radius: 4px;"></td>
+    function addDCRow(data = null) {
+        const tr = document.createElement('tr');
+        tr.style.borderBottom = '1px solid var(--color-neutral-100)';
+        tr.innerHTML = `
+            <td style="padding: 8px;"><input type="text" value="${data?.poNo || ''}" style="width: 100%; padding: 8px; border: 1px solid var(--color-neutral-200); border-radius: 4px;"></td>
+            <td style="padding: 8px;"><input type="text" value="${data?.desc || ''}" style="width: 100%; padding: 8px; border: 1px solid var(--color-neutral-200); border-radius: 4px;"></td>
+            <td style="padding: 8px;"><input type="number" value="${data?.qty || ''}" ${data?.maxQty ? `max="${data.maxQty}" placeholder="Max: ${data.maxQty}"` : ''} style="width: 100%; padding: 8px; border: 1px solid var(--color-neutral-200); border-radius: 4px;"></td>
+            <td style="padding: 8px; text-align: center;">
+                <button type="button" class="btn-select-rdc" style="background: var(--color-primary-600); color: white; border: none; padding: 6px 12px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: 0.2s;" onmouseover="this.style.background='var(--color-primary-700)'" onmouseout="this.style.background='var(--color-primary-600)'">Select</button>
+            </td>
+            <td style="padding: 8px;"><input type="text" value="${data?.code || ''}" style="width: 100%; padding: 8px; border: 1px solid var(--color-neutral-200); border-radius: 4px;"></td>
+            <td style="padding: 8px;"><input type="text" value="${data?.remark || ''}" style="width: 100%; padding: 8px; border: 1px solid var(--color-neutral-200); border-radius: 4px;"></td>
+            <td style="padding: 8px;"><input type="text" value="${data?.hsn || ''}" style="width: 100%; padding: 8px; border: 1px solid var(--color-neutral-200); border-radius: 4px;"></td>
+            <td style="padding: 8px;"><input type="number" value="${data?.totalQty || ''}" style="width: 100%; padding: 8px; border: 1px solid var(--color-neutral-200); border-radius: 4px;"></td>
+            <td style="padding: 8px;"><input type="number" value="${data?.rate || ''}" style="width: 100%; padding: 8px; border: 1px solid var(--color-neutral-200); border-radius: 4px;"></td>
+            <td style="padding: 8px;"><input type="number" value="${data?.usedQty || ''}" style="width: 100%; padding: 8px; border: 1px solid var(--color-neutral-200); border-radius: 4px;"></td>
+            <td style="padding: 8px;"><input type="text" value="${data?.invCode || ''}" style="width: 100%; padding: 8px; border: 1px solid var(--color-neutral-200); border-radius: 4px;"></td>
             <td style="padding: 8px; text-align: center;">
                 <button type="button" class="btn-remove-row" style="background: #fee2e2; color: #ef4444; border: none; width: 28px; height: 28px; border-radius: 4px; cursor: pointer;"><i class="fas fa-times"></i></button>
             </td>
         `;
-        tbody.appendChild(newRow);
+        if (data?.rdcRef) tr.dataset.rdcRef = JSON.stringify(data.rdcRef);
+        tbody.appendChild(tr);
+        return tr;
+    }
+
+    // Handle adding new row
+    btnAddRow.addEventListener('click', () => {
+        addDCRow();
     });
 
-    // Handle removing row
+    // Handle removing row and RDC selection
     tbody.addEventListener('click', (e) => {
-        const btn = e.target.closest('.btn-remove-row');
-        if (btn) {
-            btn.closest('tr').remove();
+        const removeBtn = e.target.closest('.btn-remove-row');
+        if (removeBtn) {
+            removeBtn.closest('tr').remove();
+        }
+
+        const selectBtn = e.target.closest('.btn-select-rdc');
+        if (selectBtn) {
+            openRDCSelector(selectBtn.closest('tr'));
+        }
+    });
+
+    let currentRowToFillDC = null;
+    function openRDCSelector(row) {
+        currentRowToFillDC = row;
+        const modal = document.getElementById('modal-rdc-selector');
+        const selectorBody = document.getElementById('rdc-selector-body');
+        const btnBulkAdd = document.getElementById('btn-bulk-add-rdc');
+        const selectAll = document.getElementById('rdc-select-all');
+        if (!modal || !selectorBody || !btnBulkAdd) return;
+
+        if (selectAll) selectAll.checked = false;
+
+        const rdcs = JSON.parse(localStorage.getItem('invoice_flow_rdcs') || '[]');
+        let availableItems = [];
+        
+        rdcs.forEach((rdc, rdcIdx) => {
+            rdc.items.forEach((item, itemIdx) => {
+                const availableQty = parseFloat(item.qty) || 0;
+                if (availableQty >= 0.01) {
+                    availableItems.push({
+                        rdcNo: rdc.noFull,
+                        customer: rdc.customer,
+                        product: item.product,
+                        itemCode: item.code,
+                        hsn: item.hsn,
+                        qty: availableQty,
+                        rdcIdx: rdcIdx,
+                        itemIdx: itemIdx
+                    });
+                }
+            });
+        });
+
+        const renderSelector = (items) => {
+            if (items.length === 0) {
+                selectorBody.innerHTML = `<tr><td colspan="5" style="padding: 24px; text-align: center; color: var(--color-neutral-400);">No available RDC items found.</td></tr>`;
+                return;
+            }
+            selectorBody.innerHTML = items.map((item, idx) => `
+                <tr style="border-bottom: 1px solid var(--color-neutral-100); transition: background 0.2s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">
+                    <td style="padding: 12px; text-align: center;"><input type="checkbox" class="rdc-item-checkbox" data-idx="${idx}" style="width: 16px; height: 16px; cursor: pointer;"></td>
+                    <td style="padding: 12px; font-size: 0.875rem; font-weight: 600;">${item.rdcNo}</td>
+                    <td style="padding: 12px; font-size: 0.875rem;">${item.customer}</td>
+                    <td style="padding: 12px; font-size: 0.875rem;">${item.product}</td>
+                    <td style="padding: 12px; font-size: 0.875rem; text-align: center; font-weight: 700; color: var(--color-primary-600);">${item.qty}</td>
+                </tr>
+            `).join('');
+        };
+
+        let currentFilteredItems = [...availableItems];
+        renderSelector(currentFilteredItems);
+        modal.style.display = 'flex';
+
+        // Select All logic
+        if (selectAll) {
+            selectAll.onchange = () => {
+                document.querySelectorAll('.rdc-item-checkbox').forEach(cb => cb.checked = selectAll.checked);
+            };
+        }
+
+        // Search logic
+        const searchInput = document.getElementById('rdc-selector-search');
+        if (searchInput) {
+            searchInput.value = '';
+            searchInput.oninput = (e) => {
+                const query = e.target.value.toLowerCase();
+                currentFilteredItems = availableItems.filter(item => 
+                    item.rdcNo.toLowerCase().includes(query) || 
+                    item.customer.toLowerCase().includes(query) || 
+                    item.product.toLowerCase().includes(query)
+                );
+                renderSelector(currentFilteredItems);
+            };
+        }
+
+        // Bulk add logic
+        btnBulkAdd.onclick = () => {
+            const checkboxes = selectorBody.querySelectorAll('.rdc-item-checkbox:checked');
+            if (checkboxes.length === 0) {
+                alert('Please select at least one item.');
+                return;
+            }
+
+            checkboxes.forEach((cb, idx) => {
+                const item = currentFilteredItems[parseInt(cb.dataset.idx)];
+                const rowData = {
+                    desc: item.product,
+                    code: item.itemCode,
+                    hsn: item.hsn,
+                    remark: item.rdcNo,
+                    maxQty: item.qty,
+                    rdcRef: { rdcIdx: item.rdcIdx, itemIdx: item.itemIdx }
+                };
+
+                if (idx === 0 && currentRowToFillDC) {
+                    // Fill current row
+                    const inputs = currentRowToFillDC.querySelectorAll('input');
+                    inputs[1].value = rowData.desc;
+                    inputs[3].value = rowData.code;
+                    inputs[5].value = rowData.hsn;
+                    inputs[4].value = rowData.remark;
+                    inputs[2].max = rowData.maxQty;
+                    inputs[2].placeholder = "Max: " + rowData.maxQty;
+                    currentRowToFillDC.dataset.rdcRef = JSON.stringify(rowData.rdcRef);
+                } else {
+                    addDCRow(rowData);
+                }
+            });
+
+            modal.style.display = 'none';
+        };
+    }
+
+    // Add Qty validation on input
+    tbody.addEventListener('input', (e) => {
+        if (e.target.type === 'number' && e.target.max) {
+            const val = parseFloat(e.target.value) || 0;
+            const max = parseFloat(e.target.max);
+            if (val > max) {
+                alert(`Quantity cannot exceed RDC available quantity (${max})`);
+                e.target.value = max;
+            }
         }
     });
 
@@ -903,7 +1067,8 @@ function initDCForm() {
         const orderNo = document.getElementById('dc-order-no').value;
         const orderDate = document.getElementById('dc-order-date').value;
         const vendorName = document.getElementById('dc-vendor').value;
-        const dcNo = "DC-" + Math.floor(1000 + Math.random() * 9000) + "/25-26";
+        const dcNoInput = document.getElementById('dc-number-input').value.trim();
+        const dcNo = dcNoInput || getNextDCNo();
 
         // 2. Extract Items Data
         const items = [];
@@ -930,7 +1095,10 @@ function initDCForm() {
                     usedQty: parseFloat(inputs[8].value) || 0,
                     invCode: inputs[9].value
                 };
-                items.push(item);
+                    items.push({
+                        ...item,
+                        rdcRef: row.dataset.rdcRef ? JSON.parse(row.dataset.rdcRef) : null
+                    });
                 totalQty += item.qty;
             }
         }
@@ -952,8 +1120,7 @@ function initDCForm() {
 
             if (form.dataset.editMode === 'true' && window.currentEditRow) {
                 targetRow = window.currentEditRow;
-                const oldData = JSON.parse(targetRow.dataset.dcData);
-                finalDcNo = oldData.dcNo; // Keep original DC number
+                finalDcNo = dcNo; // Use current input/generated no
             } else {
                 targetRow = document.createElement('tr');
                 targetRow.style.borderBottom = '1px solid var(--color-neutral-100)';
@@ -1003,7 +1170,7 @@ function initDCForm() {
                     <td style="padding: 6px; border-right: 1px solid #e2e8f0; text-align: center;">${item.qty}</td>
                     <td style="padding: 6px; border-right: 1px solid #e2e8f0; text-align: center;">${item.code}</td>
                     <td style="padding: 6px; border-right: 1px solid #e2e8f0; text-align: center;">${item.hsn}</td>
-                    <td style="padding: 6px; border-right: 1px solid #e2e8f0; text-align: center;">${item.qty}</td>
+                    <td style="padding: 6px; border-right: 1px solid #e2e8f0; text-align: center;">${item.totalQty}</td>
                     <td style="padding: 6px; text-align: left;">${item.remark}</td>
                 `;
                 printTableBody.appendChild(tr);
@@ -1035,6 +1202,12 @@ function initDCForm() {
     submitBtn.style.background = '#059669';
     submitBtn.disabled = true;
 
+    // Increment sequence if not editing and using the suggested number
+    if (!form.dataset.editMode || form.dataset.editMode !== 'true') {
+        const sequence = parseInt(localStorage.getItem('invoice_flow_dc_sequence') || '1');
+        localStorage.setItem('invoice_flow_dc_sequence', sequence + 1);
+    }
+
         setTimeout(() => {
             form.reset();
             while (tbody.children.length > 1) tbody.removeChild(tbody.lastChild);
@@ -1050,6 +1223,26 @@ function initDCForm() {
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
             document.getElementById('page-print-dc').classList.add('active');
             window.scrollTo(0,0);
+            
+            // 6. Update RDC Quantities
+            const rdcs = JSON.parse(localStorage.getItem('invoice_flow_rdcs') || '[]');
+            items.forEach((item) => {
+                if (item.rdcRef) {
+                    const ref = item.rdcRef;
+                    if (rdcs[ref.rdcIdx] && rdcs[ref.rdcIdx].items[ref.itemIdx]) {
+                        const currentRdcQty = parseFloat(rdcs[ref.rdcIdx].items[ref.itemIdx].qty) || 0;
+                        const newQty = Math.max(0, currentRdcQty - item.qty);
+                        rdcs[ref.rdcIdx].items[ref.itemIdx].qty = newQty;
+                        
+                        // Track closure
+                        if (newQty <= 0) {
+                            rdcs[ref.rdcIdx].items[ref.itemIdx].closedByDC = dcNo;
+                            rdcs[ref.rdcIdx].items[ref.itemIdx].closedDate = dcDate;
+                        }
+                    }
+                }
+            });
+            localStorage.setItem('invoice_flow_rdcs', JSON.stringify(rdcs));
         }, 800);
     });
 
@@ -1071,6 +1264,7 @@ function initDCForm() {
             document.getElementById('dc-order-no').value = data.orderNo;
             document.getElementById('dc-order-date').value = data.orderDate;
             document.getElementById('dc-vendor').value = data.vendorName;
+            document.getElementById('dc-number-input').value = data.dcNo || '';
             
             tbody.innerHTML = '';
             data.items.forEach(item => {
@@ -1820,4 +2014,142 @@ async function loadDeptData() {
     `).join('');
 
     updateDepartmentDropdowns(); // Initial sync after loading seed data
+}
+
+/* ---- Products Management ---- */
+function initProducts() {
+    const modal = document.getElementById('modal-add-product');
+    const btnAdd = document.getElementById('btn-add-product');
+    const form = document.getElementById('form-add-product');
+    const tbody = document.getElementById('products-table-body');
+
+    if (btnAdd && modal) {
+        btnAdd.addEventListener('click', () => {
+            modal.style.display = 'flex';
+        });
+    }
+
+    if (form) {
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const name = document.getElementById('product-name-input').value;
+            const code = document.getElementById('product-code-input').value;
+            const hsn = document.getElementById('product-hsn-input').value;
+            const rate = document.getElementById('product-rate-input').value;
+
+            const tr = document.createElement('tr');
+            tr.style.borderBottom = '1px solid var(--color-neutral-100)';
+            tr.innerHTML = `
+                <td style="padding: 16px; font-size: 0.875rem; font-weight: 600; color: var(--color-primary-900); border-bottom: 1px solid var(--color-neutral-100);">${name}</td>
+                <td style="padding: 16px; font-size: 0.875rem; color: var(--color-neutral-600); border-bottom: 1px solid var(--color-neutral-100); text-transform: uppercase;">${code}</td>
+                <td style="padding: 16px; font-size: 0.875rem; color: var(--color-neutral-600); border-bottom: 1px solid var(--color-neutral-100);">${hsn}</td>
+                <td style="padding: 16px; font-size: 0.875rem; font-weight: 700; color: var(--color-neutral-900); border-bottom: 1px solid var(--color-neutral-100);">₹${parseFloat(rate).toFixed(2)}</td>
+                <td style="padding: 16px; text-align: right; border-bottom: 1px solid var(--color-neutral-100);">
+                    <div style="display: flex; justify-content: flex-end; gap: 8px;">
+                        <button class="btn-edit-product" style="background: #3b82f6; color: white; border: none; width: 32px; height: 32px; border-radius: 4px; cursor: pointer;" title="Edit"><i class="fas fa-edit"></i></button>
+                        <button class="btn-delete-product" style="background: #ef4444; color: white; border: none; width: 32px; height: 32px; border-radius: 4px; cursor: pointer;" title="Delete"><i class="fas fa-trash"></i></button>
+                    </div>
+                </td>
+            `;
+            tbody.prepend(tr);
+            modal.style.display = 'none';
+            form.reset();
+            alert('Product added successfully!');
+        });
+    }
+    
+    // Seed data
+    if (tbody && tbody.children.length === 0) {
+        const seedProducts = [
+            { name: 'Hex Bolt M10 x 50', code: 'HB-M10-50', hsn: '7318', rate: 14.50 },
+            { name: 'Self Tapping Screw', code: 'STS-08', hsn: '7318', rate: 2.80 },
+            { name: 'Nylon Insert Lock Nut', code: 'NLN-M10', hsn: '7318', rate: 5.00 }
+        ];
+        seedProducts.forEach(p => {
+             const tr = document.createElement('tr');
+            tr.style.borderBottom = '1px solid var(--color-neutral-100)';
+            tr.innerHTML = `
+                <td style="padding: 16px; font-size: 0.875rem; font-weight: 600; color: var(--color-primary-900); border-bottom: 1px solid var(--color-neutral-100);">${p.name}</td>
+                <td style="padding: 16px; font-size: 0.875rem; color: var(--color-neutral-600); border-bottom: 1px solid var(--color-neutral-100); text-transform: uppercase;">${p.code}</td>
+                <td style="padding: 16px; font-size: 0.875rem; color: var(--color-neutral-600); border-bottom: 1px solid var(--color-neutral-100);">${p.hsn}</td>
+                <td style="padding: 16px; font-size: 0.875rem; font-weight: 700; color: var(--color-neutral-900); border-bottom: 1px solid var(--color-neutral-100);">₹${p.rate.toFixed(2)}</td>
+                <td style="padding: 16px; text-align: right; border-bottom: 1px solid var(--color-neutral-100);">
+                    <div style="display: flex; justify-content: flex-end; gap: 8px;">
+                        <button class="btn-edit-product" style="background: #3b82f6; color: white; border: none; width: 32px; height: 32px; border-radius: 4px; cursor: pointer;" title="Edit"><i class="fas fa-edit"></i></button>
+                        <button class="btn-delete-product" style="background: #ef4444; color: white; border: none; width: 32px; height: 32px; border-radius: 4px; cursor: pointer;" title="Delete"><i class="fas fa-trash"></i></button>
+                    </div>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    if (tbody) {
+        tbody.addEventListener('click', (e) => {
+            const deleteBtn = e.target.closest('.btn-delete-product');
+            if (deleteBtn) {
+                if (confirm('Are you sure you want to delete this product?')) {
+                    deleteBtn.closest('tr').remove();
+                }
+            }
+        });
+    }
+}
+
+/* ---- Closed Items Logic ---- */
+function initClosedItems() {
+    const closedRDCTableBody = document.getElementById('closed-rdc-table-body');
+    const closedPOTableBody = document.getElementById('closed-po-table-body');
+    if (!closedRDCTableBody && !closedPOTableBody) return;
+
+    window.refreshClosedItems = function() {
+        renderClosedItems();
+    };
+
+    function renderClosedItems() {
+        // 1. RDC Closed Items
+        if (closedRDCTableBody) {
+            const rdcs = JSON.parse(localStorage.getItem('invoice_flow_rdcs') || '[]');
+            const closedRDCs = [];
+            
+            rdcs.forEach(rdc => {
+                rdc.items.forEach(item => {
+                    const qty = parseFloat(item.qty) || 0;
+                    if (qty <= 0) {
+                        closedRDCs.push({
+                            no: rdc.noFull,
+                            customer: rdc.customer,
+                            product: item.product,
+                            date: item.closedDate || rdc.date || 'N/A',
+                            closedBy: item.closedByDC || 'Manual/System'
+                        });
+                    }
+                });
+            });
+
+            if (closedRDCs.length === 0) {
+                closedRDCTableBody.innerHTML = `<tr><td colspan="5" style="padding: 40px; text-align: center; color: var(--color-neutral-400);">No closed RDC items found.</td></tr>`;
+            } else {
+                closedRDCTableBody.innerHTML = closedRDCs.map(item => `
+                    <tr style="border-bottom: 1px solid var(--color-neutral-100); transition: background 0.2s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">
+                        <td style="padding: 16px; font-weight: 700; color: var(--color-primary-900);">${item.no}</td>
+                        <td style="padding: 16px; color: var(--color-neutral-700);">${item.customer}</td>
+                        <td style="padding: 16px; color: var(--color-neutral-900); font-weight: 600;">${item.product}</td>
+                        <td style="padding: 16px;"><span style="background: var(--color-success-50); color: var(--color-success-700); padding: 4px 10px; border-radius: 99px; font-size: 0.75rem; font-weight: 700;">${item.closedBy}</span></td>
+                        <td style="padding: 16px; text-align: right; color: var(--color-neutral-500); font-size: 0.875rem;">${item.date}</td>
+                    </tr>
+                `).join('');
+            }
+        }
+
+        // 2. PO Closed Items
+        if (closedPOTableBody) {
+            // Placeholder for now
+            if (closedPOTableBody.children.length === 0) {
+                closedPOTableBody.innerHTML = `<tr><td colspan="4" style="padding: 40px; text-align: center; color: var(--color-neutral-400);">No closed Purchase Orders found.</td></tr>`;
+            }
+        }
+    }
+
+    renderClosedItems();
 }
