@@ -10,19 +10,25 @@ const API_BASE = 'http://localhost:3000';
 
 document.addEventListener('DOMContentLoaded', () => {
     console.log('DOM Content Loaded - Initializing App');
-    initVendorForm();
-    initDCForm();
-    initNavigation();
-    initSearch();
-    initAnimations();
-    initInvoiceTabs();
-    initLoadingSheets();
-    initInventory();
-    initDept();
+    const initFunctions = [
+        { name: 'Vendors', fn: typeof initVendorForm !== 'undefined' ? initVendorForm : null },
+        { name: 'DC', fn: typeof initDCForm !== 'undefined' ? initDCForm : null },
+        { name: 'Navigation', fn: typeof initNavigation !== 'undefined' ? initNavigation : null },
+        { name: 'Search', fn: typeof initSearch !== 'undefined' ? initSearch : null },
+        { name: 'Animations', fn: typeof initAnimations !== 'undefined' ? initAnimations : null },
+        { name: 'InvoiceTabs', fn: typeof initInvoiceTabs !== 'undefined' ? initInvoiceTabs : null },
+        { name: 'LoadingSheets', fn: typeof initLoadingSheets !== 'undefined' ? initLoadingSheets : null },
+        { name: 'Inventory', fn: typeof initInventory !== 'undefined' ? initInventory : null },
+        { name: 'Dept', fn: typeof initDept !== 'undefined' ? initDept : null },
+        { name: 'RDC', fn: typeof initRDC !== 'undefined' ? initRDC : null }
+    ];
 
-    // Load live data from backend
-    loadDashboardData();
-    loadInvoicesData();
+    initFunctions.forEach(m => {
+        try { if (m.fn) m.fn(); } catch (e) { console.error(`Error in ${m.name}:`, e); }
+    });
+
+    loadDashboardData().catch(e => console.error('Dashboard error:', e));
+    loadInvoicesData().catch(e => console.error('Invoices error:', e));
 });
 
 // --- 2. API HELPER ---
