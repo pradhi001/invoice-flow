@@ -81,14 +81,107 @@ function formatCurrency(amount) {
     };
 
     function getNextDCNo() {
-    const sequence = parseInt(localStorage.getItem('invoice_flow_dc_sequence') || '1');
-    const fy = "26/27"; 
-    const paddedSeq = sequence.toString().padStart(3, '0');
-    return `${paddedSeq} - ${fy}`;
-}
+        const sequence = parseInt(localStorage.getItem('invoice_flow_dc_sequence') || '1');
+        const fy = "26/27"; 
+        const paddedSeq = sequence.toString().padStart(3, '0');
+        return `${paddedSeq} - ${fy}`;
+    }
+
+    function getNextInvoiceNo() {
+        const sequence = parseInt(localStorage.getItem('invoice_flow_inv_sequence') || '125');
+        const fy = "26/27"; 
+        const paddedSeq = sequence.toString().padStart(3, '0');
+        return `${paddedSeq} - ${fy}`;
+    }
 
 document.addEventListener('DOMContentLoaded', () => {
     console.log('DOM Content Loaded - Initializing App');
+    
+    // --- 0. LOGIN SYSTEM ---
+    const initLogin = () => {
+        const loginPage = document.getElementById('login-page');
+        const mainApp = document.getElementById('main-app');
+        const loginForm = document.getElementById('login-form');
+        const userEmailSpan = document.querySelector('.user-name'); // Sidebar name
+        
+        // Check Session
+        const session = localStorage.getItem('invoice_flow_session');
+        if (session) {
+            const userData = JSON.parse(session);
+            if (userEmailSpan) userEmailSpan.textContent = userData.name || 'Admin User';
+            loginPage.classList.remove('active');
+            mainApp.style.display = 'flex';
+        } else {
+            loginPage.classList.add('active');
+            mainApp.style.display = 'none';
+        }
+
+        // Handle Form
+        if (loginForm) {
+            loginForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const username = document.getElementById('login-email').value; // Repurposed for "Admin"
+                const password = document.getElementById('login-password').value;
+                const btn = loginForm.querySelector('.btn-login');
+                
+                // Show loading state
+                const originalText = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Authenticating...';
+                btn.disabled = true;
+
+                // Authentication Check (Updated credentials)
+                setTimeout(() => {
+                    if (username === 'Admin' && password === 'Chellam@1') {
+                        const userData = { name: 'Admin User', role: 'Super Admin', username: 'ADMIN' };
+                        localStorage.setItem('invoice_flow_session', JSON.stringify(userData));
+                        
+                        showNotification('Login Successful! Welcome back.', 'success');
+                        
+                        // Transition to App
+                        loginPage.style.opacity = '0';
+                        setTimeout(() => {
+                            loginPage.classList.remove('active');
+                            mainApp.style.display = 'flex';
+                            mainApp.style.opacity = '0';
+                            setTimeout(() => mainApp.style.opacity = '1', 50);
+                            
+                            // Initialize dashboard
+                            if (typeof window.renderDashboardStats === 'function') window.renderDashboardStats();
+                        }, 500);
+                    } else {
+                        showNotification('Invalid username or password. Please try again.', 'error');
+                        btn.innerHTML = originalText;
+                        btn.disabled = false;
+                    }
+                }, 1000);
+            });
+        }
+
+        // Logout System
+        const logoutBtn = document.getElementById('nav-logout');
+        if (logoutBtn) {
+            logoutBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (confirm('Are you sure you want to logout?')) {
+                    localStorage.removeItem('invoice_flow_session');
+                    showNotification('You have been logged out.', 'info');
+                    
+                    // Transition back to login
+                    mainApp.style.opacity = '0';
+                    setTimeout(() => {
+                        mainApp.style.display = 'none';
+                        loginPage.classList.add('active');
+                        loginPage.style.opacity = '1';
+                        // Clear form
+                        if (loginForm) loginForm.reset();
+                    }, 500);
+                }
+            });
+        }
+    };
+
+    initLogin();
+
     if (typeof window.renderDCList === 'function') window.renderDCList();
     const initFunctions = [
         { name: 'DC', fn: typeof initDCForm !== 'undefined' ? initDCForm : null },
@@ -319,11 +412,19 @@ function initNavigation() {
         'settings': 'Search settings...'
     };
 
-    // Handle dropdown toggles
+    // Handle dropdown toggles (Accordion Style)
     dropdownToggles.forEach(toggle => {
         toggle.addEventListener('click', (e) => {
             e.preventDefault();
             const group = toggle.closest('.nav-item-group');
+            const isOpen = group.classList.contains('open');
+            
+            // Close all other dropdowns
+            document.querySelectorAll('.nav-item-group').forEach(g => {
+                if (g !== group) g.classList.remove('open');
+            });
+            
+            // Toggle current
             group.classList.toggle('open');
         });
     });
@@ -361,8 +462,10 @@ function initNavigation() {
                 window.refreshClosedItems();
             }
 
-            if (pageName === 'create-invoice' && typeof window.loadDCList === 'function') {
-                window.loadDCList();
+            if (pageName === 'create-invoice') {
+                if (typeof window.loadDCList === 'function') window.loadDCList();
+                const invNoEl = document.getElementById('current-invoice-no');
+                if (invNoEl) invNoEl.textContent = getNextInvoiceNo();
             }
             
             if (pageName === 'view-dc' && typeof window.renderDCList === 'function') {
@@ -408,13 +511,23 @@ function initNavigation() {
             const createPage = document.getElementById('page-create-invoice');
             if (createPage) createPage.classList.add('active');
             
+            // Set dynamic invoice number
+            const invNoEl = document.getElementById('current-invoice-no');
+            if (invNoEl) invNoEl.textContent = getNextInvoiceNo();
+
             // Update sidebar nav state
             document.querySelectorAll('.sidebar-nav .nav-item').forEach(n => n.classList.remove('active'));
             const createNav = document.getElementById('nav-create-invoice');
             if (createNav) {
                 createNav.classList.add('active');
                 const group = createNav.closest('.nav-item-group');
-                if (group) group.classList.add('open');
+                if (group) {
+                    // Close all other dropdowns
+                    document.querySelectorAll('.nav-item-group').forEach(g => {
+                        if (g !== group) g.classList.remove('open');
+                    });
+                    group.classList.add('open');
+                }
             }
         });
     }
@@ -604,15 +717,9 @@ function initInvoiceForm() {
         }
     }
 
-    // Attach events to existing rows and add one initial row if empty
-    tbody.querySelectorAll('tr').forEach(attachRowEvents);
-    if (tbody.querySelectorAll('tr').length === 0) {
-        btnAddRow.click();
-    }
-
-    // Add new row
-    btnAddRow.addEventListener('click', (e) => {
-        e.preventDefault();
+    // Add new row logic
+    const addNewRow = (e) => {
+        if (e) e.preventDefault();
         const tr = document.createElement('tr');
         tr.style.borderBottom = '1px solid var(--color-neutral-100)';
         tr.style.transition = 'background 0.2s';
@@ -642,11 +749,15 @@ function initInvoiceForm() {
         tbody.appendChild(tr);
         attachRowEvents(tr);
         calculateTotal();
-    });
+    };
 
-    // Initialize with one row if empty (handled by line 591)
-    // btnAddRow.click();
-    // btnAddRow.click();
+    btnAddRow.addEventListener('click', addNewRow);
+
+    // Attach events to existing rows and add one initial row if empty
+    tbody.querySelectorAll('tr').forEach(attachRowEvents);
+    if (tbody.querySelectorAll('tr').length === 0) {
+        addNewRow();
+    }
 
     // Submit buttons transition to print preview
     const btnSubmitTop = document.getElementById('btn-submit-invoice-top');
@@ -668,6 +779,12 @@ function initInvoiceForm() {
         }
         if (printVendorName && vendorInput && vendorInput.selectedIndex > 0) {
             printVendorName.textContent = vendorInput.options[vendorInput.selectedIndex].text;
+        }
+
+        const invNoEl = document.getElementById('current-invoice-no');
+        const printInvNo = document.getElementById('print-invoice-no');
+        if (printInvNo && invNoEl) {
+            printInvNo.textContent = invNoEl.textContent;
         }
 
         // 2. Copy Table Rows
@@ -2552,7 +2669,7 @@ function initAuth() {
 
     // 1. Initial State
     const defaultAdmin = {
-        username: 'admin',
+        username: 'ADMIN',
         password: '123',
         role: 'Super Admin',
         permissions: ['nav-dashboard', 'nav-invoices', 'nav-dc', 'nav-loading-sheets', 'nav-po', 'nav-rdc', 'nav-manage', 'nav-settings']
@@ -2755,10 +2872,31 @@ function initAuth() {
         };
     }
 
+    const initPasswordToggles = () => {
+        document.querySelectorAll('.password-toggle-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const targetId = btn.dataset.target;
+                const input = document.getElementById(targetId);
+                const icon = btn.querySelector('i');
+                
+                if (input.type === 'password') {
+                    input.type = 'text';
+                    icon.classList.remove('fa-eye');
+                    icon.classList.add('fa-eye-slash');
+                } else {
+                    input.type = 'password';
+                    icon.classList.remove('fa-eye-slash');
+                    icon.classList.add('fa-eye');
+                }
+            });
+        });
+    };
+
     // Initial load
     const currentUser = getCurrentUser();
     applyPermissions(currentUser);
     initTeamUI();
+    initPasswordToggles();
 }
 
 /* ---- Purchase Orders Logic ---- */
