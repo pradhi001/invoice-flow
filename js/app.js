@@ -31,7 +31,8 @@ document.addEventListener('DOMContentLoaded', () => {
         { name: 'Products', fn: typeof initProducts !== 'undefined' ? initProducts : null },
         { name: 'Customers', fn: typeof initCustomers !== 'undefined' ? initCustomers : null },
         { name: 'RDC', fn: typeof initRDC !== 'undefined' ? initRDC : null },
-        { name: 'ClosedItems', fn: typeof initClosedItems !== 'undefined' ? initClosedItems : null }
+        { name: 'ClosedItems', fn: typeof initClosedItems !== 'undefined' ? initClosedItems : null },
+        { name: 'Auth', fn: typeof initAuth !== 'undefined' ? initAuth : null }
     ];
 
     initFunctions.forEach(m => {
@@ -1387,14 +1388,81 @@ function initLoadingSheets() {
     }
 
     [itemNos, itemRate, itemCutting].forEach(el => {
-        if (el) el.addEventListener('input', calculateItemTotal);
+        if (el) el.addEventListener('input', () => {
+            calculateItemTotal();
+            if (el === itemRate) searchItemCodesByRate();
+        });
     });
+
+    function searchItemCodesByRate() {
+        const rate = parseFloat(itemRate.value) || 0;
+        const selectionContainer = document.getElementById('rate-selection-container');
+        const selectionTableBody = document.getElementById('rate-selection-table-body');
+        const grandTotal = document.getElementById('header-grand-total').value || '0.00';
+
+        if (rate <= 0) {
+            if (selectionContainer) selectionContainer.style.display = 'none';
+            return;
+        }
+
+        // Inventory data (matching seed data in loadInventoryData)
+        const inventoryItems = [
+            { rate: '2.80', code: '73181000L01140' },
+            { rate: '25.00', code: '73181000L01150' },
+            { rate: '5.00', code: '73181000L01152' },
+            { rate: '10.00', code: '73181000L01149' },
+            { rate: '16.00', code: '73181000L01142' },
+            { rate: '2.00', code: '73181000L01183' },
+            { rate: '2.80', code: '73181000L01161' },
+            { rate: '25.00', code: '73181000L01165' },
+            { rate: '16.00', code: '73181000L01158' },
+            { rate: '5.00', code: '73181000L01156' }
+        ];
+
+        const matches = inventoryItems.filter(item => parseFloat(item.rate) === rate);
+
+        if (matches.length > 0) {
+            if (selectionContainer) selectionContainer.style.display = 'block';
+            if (selectionTableBody) {
+                const codesHtml = matches.map(match => `
+                    <label style="display: inline-flex; align-items: center; gap: 8px; margin-right: 24px; cursor: pointer; font-size: 0.875rem; color: var(--color-neutral-800); font-weight: 600;">
+                        <input type="radio" name="item-code-selection" value="${match.code}" style="cursor: pointer; accent-color: #5c4eb4; width: 18px; height: 18px;">
+                        ${match.code}
+                    </label>
+                `).join('');
+
+                selectionTableBody.innerHTML = `
+                    <tr style="transition: background 0.2s;">
+                        <td style="padding: 16px; font-size: 0.875rem; color: var(--color-neutral-700); border-right: 1px solid var(--color-neutral-100);">${parseFloat(rate).toFixed(2)}</td>
+                        <td style="padding: 16px;">
+                            <div style="display: flex; align-items: center; flex-wrap: wrap;">
+                                ${codesHtml}
+                            </div>
+                        </td>
+                    </tr>
+                `;
+
+                // Add selection event
+                selectionTableBody.querySelectorAll('input[type="radio"]').forEach(radio => {
+                    radio.addEventListener('change', (e) => {
+                        if (e.target.checked) {
+                            const itemCodeInput = document.getElementById('item-code');
+                            if (itemCodeInput) itemCodeInput.value = e.target.value;
+                        }
+                    });
+                });
+            }
+        } else {
+            if (selectionContainer) selectionContainer.style.display = 'none';
+        }
+    }
 
     // Add Item to Table
     btnAddItem.addEventListener('click', () => {
         const customer = document.getElementById('item-customer').value;
         const no = document.getElementById('item-no').value;
         const name = document.getElementById('item-name').value;
+        const code = document.getElementById('item-code').value;
         const serial = document.getElementById('item-serial').value;
         const nos = parseFloat(itemNos.value) || 0;
         const cutting = parseFloat(itemCutting.value) || 0;
@@ -1407,7 +1475,7 @@ function initLoadingSheets() {
             return;
         }
 
-        const item = { customer, no, name, serial, nos, cutting, rate, total };
+        const item = { customer, no, name, code, serial, nos, cutting, rate, total };
         itemsList.push(item);
         renderEntryTable();
         clearItemInputs();
@@ -1465,6 +1533,7 @@ function initLoadingSheets() {
                 document.getElementById('item-customer').value = item.customer;
                 document.getElementById('item-no').value = item.no;
                 document.getElementById('item-name').value = item.name;
+                document.getElementById('item-code').value = item.code || '';
                 document.getElementById('item-serial').value = item.serial;
                 document.getElementById('item-nos').value = item.nos;
                 document.getElementById('item-cutting').value = item.cutting;
@@ -1483,7 +1552,7 @@ function initLoadingSheets() {
     }
 
     function clearItemInputs() {
-        ['item-customer', 'item-no', 'item-name', 'item-serial', 'item-nos', 'item-rate', 'item-total'].forEach(id => {
+        ['item-customer', 'item-no', 'item-name', 'item-code', 'item-serial', 'item-nos', 'item-rate', 'item-total'].forEach(id => {
             const el = document.getElementById(id);
             if (el) el.value = '';
         });
@@ -1611,58 +1680,132 @@ function initLoadingSheets() {
                 const index = parseInt(btn.dataset.index);
                 const sheet = allLoadingSheets[index];
                 
-                // Simple Print implementation
                 const printWindow = window.open('', '_blank');
+                
+                // Grouping items by Rate and Item Code for the bottom table
+                const summaryGroups = {};
+                sheet.items.forEach(item => {
+                    const key = `${item.rate.toFixed(2)}_${item.code || 'N/A'}`;
+                    if (!summaryGroups[key]) {
+                        summaryGroups[key] = {
+                            rate: item.rate,
+                            code: item.code || 'N/A',
+                            totalCutting: 0,
+                            totalAmount: 0
+                        };
+                    }
+                    summaryGroups[key].totalCutting += (item.nos * item.cutting);
+                    summaryGroups[key].totalAmount += item.total;
+                });
+
                 printWindow.document.write(`
                     <html>
                     <head>
                         <title>Loading Sheet - ${sheet.dcNo}</title>
                         <style>
-                            body { font-family: sans-serif; padding: 40px; }
-                            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-                            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-                            th { background-color: #f2f2f2; }
-                            .header { display: flex; justify-content: space-between; margin-bottom: 30px; }
-                            .totals { margin-top: 30px; text-align: right; }
+                            @page { size: portrait; margin: 0; }
+                            body { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1e293b; line-height: 1.5; padding: 15mm; margin: 0; }
+                            .container { width: 100%; max-width: 800px; margin: 0 auto; }
+                            .header { text-align: center; margin-bottom: 20px; }
+                            .company-name { font-size: 32px; font-weight: 800; color: #1e3a8a; margin: 0; letter-spacing: 1px; }
+                            .doc-info { display: flex; justify-content: space-between; margin-bottom: 20px; font-size: 14px; font-weight: 600; color: #475569; }
+                            
+                            table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 11px; }
+                            th { background: #f8fafc; color: #1e3a8a; font-weight: 700; text-transform: uppercase; border: 1.5px solid #1e293b; padding: 8px 4px; }
+                            td { border: 1px solid #1e293b; padding: 6px 4px; color: #0f172a; }
+                            .text-center { text-align: center; }
+                            .text-right { text-align: right; }
+                            .font-bold { font-weight: 700; }
+                            
+                            .footer-table { margin-top: 10px; border: 1.5px solid #1e293b; }
+                            .footer-table th, .footer-table td { border: 1.5px solid #1e293b; padding: 6px 12px; }
+                            
+                            .summary-box { border: 1.5px solid #1e293b; padding: 6px 12px; font-size: 12px; font-weight: 700; margin-top: 10px; }
+                            .computer-gen { text-align: center; font-size: 12px; color: #64748b; margin-top: 40px; border-top: 1px solid #e2e8f0; padding-top: 10px; font-style: italic; }
                         </style>
                     </head>
                     <body>
-                        <div class="header">
-                            <div>
-                                <h1>LOADING SHEET</h1>
-                                <p><strong>DC No:</strong> ${sheet.dcNo}</p>
-                                <p><strong>Date:</strong> ${sheet.date}</p>
+                        <div class="container">
+                            <div class="header">
+                                <h1 class="company-name">Sri Vinayaga Engineering</h1>
                             </div>
-                        </div>
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Customer</th>
-                                    <th>Item No</th>
-                                    <th>Item Name</th>
-                                    <th>NOS</th>
-                                    <th>Cutting</th>
-                                    <th>Rate</th>
-                                    <th>Total</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${sheet.items.map(item => `
+                            
+                            <div class="doc-info">
+                                <div>DC Number: ${sheet.dcNo}</div>
+                            </div>
+
+                            <table>
+                                <thead>
                                     <tr>
-                                        <td>${item.customer}</td>
-                                        <td>${item.no}</td>
-                                        <td>${item.name}</td>
-                                        <td>${item.nos}</td>
-                                        <td>${item.cutting}</td>
-                                        <td>${item.rate.toFixed(2)}</td>
-                                        <td>${item.total.toFixed(2)}</td>
+                                        <th style="width: 15%">Custom Name</th>
+                                        <th style="width: 10%">Item No</th>
+                                        <th style="width: 10%">Item Name</th>
+                                        <th style="width: 25%">Serial No</th>
+                                        <th style="width: 8%">NOS</th>
+                                        <th style="width: 8%">Cutting</th>
+                                        <th style="width: 8%">Total Cutting</th>
+                                        <th style="width: 8%">Rate</th>
+                                        <th style="width: 10%">Total</th>
                                     </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
-                        <div class="totals">
-                            <p><strong>Total NOS:</strong> ${sheet.totalNos}</p>
-                            <p><strong>Grand Total:</strong> ₹${sheet.grandTotal.toFixed(2)}</p>
+                                </thead>
+                                <tbody>
+                                    ${sheet.items.map(item => `
+                                        <tr>
+                                            <td>${item.customer}</td>
+                                            <td class="text-center">${item.no}</td>
+                                            <td class="text-center">${item.name}</td>
+                                            <td style="white-space: pre-wrap;">${item.serial}</td>
+                                            <td class="text-center">${item.nos}</td>
+                                            <td class="text-center">${item.cutting.toFixed(2)}</td>
+                                            <td class="text-center">${(item.nos * item.cutting).toFixed(2)}</td>
+                                            <td class="text-right">${item.rate.toFixed(2)}</td>
+                                            <td class="text-right font-bold">${item.total.toFixed(2)}</td>
+                                        </tr>
+                                    `).join('')}
+                                    <tr style="background: #f8fafc;">
+                                        <td colspan="4" class="text-right font-bold" style="border-right: none;">GRAND TOTAL</td>
+                                        <td class="text-center font-bold" style="border-left: none; border-right: none;">${sheet.totalNos}</td>
+                                        <td style="border-left: none; border-right: none;"></td>
+                                        <td class="text-center font-bold" style="border-left: none; border-right: none;">${sheet.totalCutting.toFixed(2)}</td>
+                                        <td style="border-left: none; border-right: none;"></td>
+                                        <td class="text-right font-bold" style="border-left: none;">${sheet.grandTotal.toFixed(2)}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+
+                            <table class="footer-table">
+                                <thead>
+                                    <tr>
+                                        <th class="text-center">Rate</th>
+                                        <th class="text-center">Item Code</th>
+                                        <th class="text-center">Total Cutting</th>
+                                        <th class="text-center">Total (₹)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${Object.values(summaryGroups).map(group => `
+                                        <tr>
+                                            <td class="text-center font-bold">${group.rate.toFixed(2)}</td>
+                                            <td class="text-center font-bold">${group.code}</td>
+                                            <td class="text-center font-bold">${group.totalCutting.toFixed(2)}</td>
+                                            <td class="text-right font-bold">₹ ${group.totalAmount.toFixed(2)}</td>
+                                        </tr>
+                                    `).join('')}
+                                    <tr style="background: #f8fafc;">
+                                        <td colspan="2" class="text-right font-bold">Grand Total</td>
+                                        <td class="text-center font-bold">${sheet.totalCutting.toFixed(2)}</td>
+                                        <td class="text-right font-bold">₹ ${sheet.grandTotal.toFixed(2)}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+
+                            <div class="summary-box">
+                                Summary: Total Entries: ${sheet.items.length} | Total Quantity (NOS): ${sheet.totalNos} | Grand Total Amount: ₹ ${sheet.grandTotal.toFixed(2)}
+                            </div>
+
+                            <div class="computer-gen">
+                                This is a computer-generated document.
+                            </div>
                         </div>
                     </body>
                     </html>
@@ -2152,4 +2295,220 @@ function initClosedItems() {
     }
 
     renderClosedItems();
+}
+
+/* ---- Authentication & Team Management ---- */
+function initAuth() {
+    const STORAGE_KEY_TEAM = 'invoice_flow_team_members';
+    const STORAGE_KEY_SESSION = 'invoice_flow_current_session';
+
+    // 1. Initial State
+    const defaultAdmin = {
+        username: 'admin',
+        password: '123',
+        role: 'Super Admin',
+        permissions: ['nav-dashboard', 'nav-invoices', 'nav-dc', 'nav-loading-sheets', 'nav-po', 'nav-rdc', 'nav-manage', 'nav-settings']
+    };
+
+    // 2. Load/Save Team
+    function getTeam() {
+        const team = JSON.parse(localStorage.getItem(STORAGE_KEY_TEAM) || '[]');
+        if (team.length === 0) {
+            team.push(defaultAdmin);
+            localStorage.setItem(STORAGE_KEY_TEAM, JSON.stringify(team));
+        }
+        return team;
+    }
+
+    // 3. Session Management
+    function getCurrentUser() {
+        return JSON.parse(sessionStorage.getItem(STORAGE_KEY_SESSION)) || defaultAdmin;
+    }
+
+    function applyPermissions(user) {
+        console.log("Applying permissions for:", user.username, user.permissions);
+        // Only target top-level nav items that are direct children of the nav container
+        const navItems = document.querySelectorAll('.sidebar-nav > [id]');
+        navItems.forEach(item => {
+            if (item.id === 'nav-logout' || item.id === 'current-user-info') return; 
+            
+            const permissionId = item.id;
+            const alternateId = permissionId.startsWith('nav-group-') ? permissionId.replace('nav-group-', 'nav-') : permissionId.replace('nav-', 'nav-group-');
+            
+            const hasAccess = user.role === 'Super Admin' || 
+                             user.permissions.includes(permissionId) || 
+                             user.permissions.includes(alternateId) ||
+                             (permissionId === 'nav-po' && user.permissions.includes('nav-purchase-orders'));
+            
+            if (hasAccess) {
+                // Use flex for everything as per sidebar.css
+                item.style.display = 'flex';
+                // Item groups need flex-direction column to show sub-items correctly
+                if (item.classList.contains('nav-item-group')) {
+                    item.style.flexDirection = 'column';
+                }
+            } else {
+                item.style.display = 'none';
+            }
+        });
+
+        // Update UI info
+        const displayName = document.getElementById('user-display-name');
+        const roleLabel = document.getElementById('user-role-label');
+        const avatar = document.getElementById('user-avatar');
+        
+        if (displayName) displayName.textContent = user.username;
+        if (roleLabel) roleLabel.textContent = user.role;
+        if (avatar) avatar.textContent = user.username.substring(0, 2).toUpperCase();
+    }
+
+    // 4. Team Management (Admin Only)
+    function initTeamUI() {
+        const btnAdd = document.getElementById('btn-open-add-team');
+        const modalAdd = document.getElementById('modal-add-team');
+        const formAdd = document.getElementById('form-add-team');
+        const modalTitle = modalAdd.querySelector('h3');
+        const submitBtn = formAdd.querySelector('button[type="submit"]');
+        const teamTableBody = document.getElementById('team-table-body');
+        let currentEditIndex = -1;
+
+        if (btnAdd) {
+            btnAdd.onclick = () => {
+                currentEditIndex = -1;
+                modalTitle.textContent = 'Add Team Member';
+                submitBtn.textContent = 'Create Team Member';
+                formAdd.reset();
+                modalAdd.style.display = 'flex';
+            };
+        }
+
+        if (formAdd) {
+            formAdd.onsubmit = (e) => {
+                e.preventDefault();
+                const name = document.getElementById('team-name').value;
+                const password = document.getElementById('team-password').value;
+                const checks = formAdd.querySelectorAll('.permission-check:checked');
+                const permissions = Array.from(checks).map(c => c.dataset.id);
+
+                const team = getTeam();
+                const memberData = { username: name, password, role: currentEditIndex === 0 ? 'Super Admin' : 'User', permissions };
+
+                if (currentEditIndex > -1) {
+                    team[currentEditIndex] = memberData;
+                } else {
+                    team.push(memberData);
+                }
+
+                localStorage.setItem(STORAGE_KEY_TEAM, JSON.stringify(team));
+                
+                modalAdd.style.display = 'none';
+                formAdd.reset();
+                renderTeamList();
+                alert(currentEditIndex > -1 ? 'Team Member Updated!' : 'Team Member Added!');
+            };
+        }
+
+        function renderTeamList() {
+            if (!teamTableBody) return;
+            const team = getTeam();
+            teamTableBody.innerHTML = team.map((member, index) => `
+                <tr style="border-bottom: 1px solid var(--color-neutral-100);">
+                    <td style="padding: 16px;">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <div style="width: 40px; height: 40px; border-radius: 50%; background: var(--color-primary-100); color: var(--color-primary-700); display: flex; align-items: center; justify-content: center; font-weight: 700;">${member.username.substring(0,2).toUpperCase()}</div>
+                            <div>
+                                <div style="font-weight: 700; color: var(--color-neutral-900);">${member.username}</div>
+                                <div style="font-size: 0.75rem; color: var(--color-neutral-500);">${member.username}@example.com</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td style="padding: 16px; color: var(--color-neutral-700); font-weight: 600;">${member.role}</td>
+                    <td style="padding: 16px; color: var(--color-neutral-700);">Management</td>
+                    <td style="padding: 16px;"><span style="background: var(--color-success-50); color: var(--color-success-700); padding: 4px 10px; border-radius: 99px; font-size: 0.75rem; font-weight: 700;">Active</span></td>
+                    <td style="padding: 16px; text-align: right;">
+                        <div style="display: flex; justify-content: flex-end; gap: 8px;">
+                            <button class="btn-edit-team" data-index="${index}" style="background: none; border: none; color: var(--color-primary-600); cursor: pointer;"><i class="fas fa-edit"></i></button>
+                            <button class="btn-delete-team" data-index="${index}" style="background: none; border: none; color: #ef4444; cursor: pointer; ${member.role === 'Super Admin' ? 'visibility: hidden' : ''}"><i class="fas fa-trash"></i></button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+
+            teamTableBody.querySelectorAll('.btn-edit-team').forEach(btn => {
+                btn.onclick = () => {
+                    const idx = parseInt(btn.dataset.index);
+                    const member = getTeam()[idx];
+                    currentEditIndex = idx;
+                    
+                    document.getElementById('team-name').value = member.username;
+                    document.getElementById('team-password').value = member.password;
+                    
+                    // Reset and set checks
+                    formAdd.querySelectorAll('.permission-check').forEach(check => {
+                        check.checked = member.role === 'Super Admin' || member.permissions.includes(check.dataset.id);
+                    });
+
+                    modalTitle.textContent = 'Edit Team Member';
+                    submitBtn.textContent = 'Update Team Member';
+                    modalAdd.style.display = 'flex';
+                };
+            });
+
+            teamTableBody.querySelectorAll('.btn-delete-team').forEach(btn => {
+                btn.onclick = () => {
+                    const idx = btn.dataset.index;
+                    const team = getTeam();
+                    if (confirm(`Delete user ${team[idx].username}?`)) {
+                        team.splice(idx, 1);
+                        localStorage.setItem(STORAGE_KEY_TEAM, JSON.stringify(team));
+                        renderTeamList();
+                    }
+                };
+            });
+        }
+
+        renderTeamList();
+    }
+
+    // 5. Login/Logout Logic
+    const loginModal = document.getElementById('modal-login');
+    const loginForm = document.getElementById('form-login');
+    const btnLogout = document.getElementById('nav-logout');
+
+    if (btnLogout) {
+        btnLogout.onclick = (e) => {
+            e.preventDefault();
+            if (confirm('Are you sure you want to logout?')) {
+                sessionStorage.removeItem(STORAGE_KEY_SESSION);
+                loginModal.style.display = 'flex';
+            }
+        };
+    }
+
+    if (loginForm) {
+        loginForm.onsubmit = (e) => {
+            e.preventDefault();
+            const user = document.getElementById('login-username').value;
+            const pass = document.getElementById('login-password').value;
+            
+            const team = getTeam();
+            const found = team.find(m => m.username === user && m.password === pass);
+            
+            if (found) {
+                sessionStorage.setItem(STORAGE_KEY_SESSION, JSON.stringify(found));
+                loginModal.style.display = 'none';
+                applyPermissions(found);
+                // Return to dashboard on login
+                const dash = document.getElementById('nav-dashboard');
+                if (dash) dash.click();
+            } else {
+                alert('Invalid Username or Password');
+            }
+        };
+    }
+
+    // Initial load
+    const currentUser = getCurrentUser();
+    applyPermissions(currentUser);
+    initTeamUI();
 }
