@@ -8,8 +8,79 @@
 // For production: 'https://your-backend.vercel.app'
 const API_BASE = 'http://localhost:3000';
 
+/**
+ * Notification System
+ */
+function showNotification(message, type = 'info') {
+    let container = document.getElementById('notification-container');
+    if (!container) {
+        container = document.createElement('div');
+        container.id = 'notification-container';
+        container.style.cssText = 'position: fixed; top: 24px; right: 24px; z-index: 10000; display: flex; flex-direction: column; align-items: flex-end; gap: 10px;';
+        document.body.appendChild(container);
+        
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes notificationSlideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+            @keyframes notificationSlideOut { from { opacity: 1; transform: translateX(0); } to { opacity: 0; transform: translateX(20px); } }
+        `;
+        document.head.appendChild(style);
+    }
+
+    const notification = document.createElement('div');
+    const colors = {
+        success: { bg: '#dcfce7', text: '#15803d', border: '#bcf0da', icon: 'fa-check-circle' },
+        warning: { bg: '#fef3c7', text: '#b45309', border: '#fde68a', icon: 'fa-exclamation-triangle' },
+        error: { bg: '#fee2e2', text: '#b91c1c', border: '#fecaca', icon: 'fa-times-circle' },
+        info: { bg: '#e0f2fe', text: '#0369a1', border: '#bae6fd', icon: 'fa-info-circle' }
+    };
+    const c = colors[type] || colors.info;
+
+    notification.style.cssText = `background: ${c.bg}; color: ${c.text}; border: 1px solid ${c.border}; padding: 12px 20px; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); font-weight: 600; font-size: 0.875rem; display: flex; align-items: center; gap: 10px; animation: notificationSlideIn 0.3s ease forwards; min-width: 250px;`;
+    notification.innerHTML = `<i class="fas ${c.icon}"></i> <span>${message}</span>`;
+    container.appendChild(notification);
+
+    setTimeout(() => {
+        notification.style.animation = 'notificationSlideOut 0.3s ease forwards';
+        setTimeout(() => notification.remove(), 300);
+    }, 3000);
+}
+
+function formatCurrency(amount) {
+    const profile = JSON.parse(localStorage.getItem('invoice_flow_company_profile') || '{}');
+    const symbol = profile.currency || '₹';
+    return symbol + ' ' + parseFloat(amount).toLocaleString('en-IN', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    });
+}
+
 // --- DC Numbering Helper ---
-function getNextDCNo() {
+    window.renderDCList = function() {
+        const viewTableBody = document.getElementById('dc-view-table-body');
+        if (!viewTableBody) return;
+        const dcs = JSON.parse(localStorage.getItem('invoice_flow_dcs') || '[]');
+        
+        if (dcs.length === 0) {
+            viewTableBody.innerHTML = '<tr><td colspan="5" style="padding: 40px; text-align: center; color: var(--color-neutral-400);">No Delivery Challans found.</td></tr>';
+            return;
+        }
+
+        viewTableBody.innerHTML = dcs.map((dc, idx) => `
+            <tr style="border-bottom: 1px solid var(--color-neutral-100);" data-dc-data='${JSON.stringify(dc).replace(/'/g, "&apos;")}'>
+                <td style="padding: 16px; font-size: 0.875rem;">${dc.dcDate}</td>
+                <td style="padding: 16px; font-size: 0.875rem; font-weight: 700; color: var(--color-primary-900);">${dc.dcNo}</td>
+                <td style="padding: 16px; font-size: 0.875rem;">${dc.vendorName}</td>
+                <td style="padding: 16px; font-size: 0.875rem;">${dc.items.length} Items</td>
+                <td style="padding: 16px; display: flex; justify-content: flex-end; gap: 12px;">
+                    <button class="btn-edit-row" style="background: transparent; color: var(--color-neutral-600); border: none; cursor: pointer; padding: 4px; transition: color 0.2s;" onmouseover="this.style.color='var(--color-primary-600)'" onmouseout="this.style.color='var(--color-neutral-600)'" title="Edit"><i class="fas fa-edit"></i></button>
+                    <button class="btn-print-row" style="background: transparent; color: var(--color-primary-600); border: none; cursor: pointer; padding: 4px; transition: color 0.2s;" onmouseover="this.style.color='var(--color-primary-800)'" onmouseout="this.style.color='var(--color-primary-600)'" title="Print"><i class="fas fa-print"></i></button>
+                </td>
+            </tr>
+        `).join('');
+    };
+
+    function getNextDCNo() {
     const sequence = parseInt(localStorage.getItem('invoice_flow_dc_sequence') || '1');
     const fy = "26/27"; 
     const paddedSeq = sequence.toString().padStart(3, '0');
@@ -18,8 +89,8 @@ function getNextDCNo() {
 
 document.addEventListener('DOMContentLoaded', () => {
     console.log('DOM Content Loaded - Initializing App');
+    if (typeof window.renderDCList === 'function') window.renderDCList();
     const initFunctions = [
-        { name: 'Vendors', fn: typeof initVendorForm !== 'undefined' ? initVendorForm : null },
         { name: 'DC', fn: typeof initDCForm !== 'undefined' ? initDCForm : null },
         { name: 'Navigation', fn: typeof initNavigation !== 'undefined' ? initNavigation : null },
         { name: 'Search', fn: typeof initSearch !== 'undefined' ? initSearch : null },
@@ -29,9 +100,10 @@ document.addEventListener('DOMContentLoaded', () => {
         { name: 'Inventory', fn: typeof initInventory !== 'undefined' ? initInventory : null },
         { name: 'Dept', fn: typeof initDept !== 'undefined' ? initDept : null },
         { name: 'Products', fn: typeof initProducts !== 'undefined' ? initProducts : null },
-        { name: 'Customers', fn: typeof initCustomers !== 'undefined' ? initCustomers : null },
+        { name: 'Suppliers', fn: typeof initSupplierForm !== 'undefined' ? initSupplierForm : null },
         { name: 'RDC', fn: typeof initRDC !== 'undefined' ? initRDC : null },
         { name: 'ClosedItems', fn: typeof initClosedItems !== 'undefined' ? initClosedItems : null },
+        { name: 'PO', fn: typeof initPO !== 'undefined' ? initPO : null },
         { name: 'Auth', fn: typeof initAuth !== 'undefined' ? initAuth : null }
     ];
 
@@ -221,11 +293,6 @@ function renderPagination(total, page, limit) {
 }
 
 // --- 5. UTILITIES ---
-function formatCurrency(value) {
-    return new Intl.NumberFormat('en-US', {
-        style: 'currency', currency: 'USD'
-    }).format(Number(value) || 0);
-}
 
 
 /* ---- Navigation ---- */
@@ -245,8 +312,8 @@ function initNavigation() {
         'inventory': 'Search inventory...',
         'dept': 'Search departments...',
         'products': 'Search products...',
-        'vendors': 'Search vendors by name, GST...',
-        'add-vendor': 'Enter vendor details...',
+        'vendors': 'Search customers by name, GST...',
+        'add-vendor': 'Enter customer details...',
         'add-dc': 'Enter challan details...',
         'view-dc': 'Search delivery challans...',
         'settings': 'Search settings...'
@@ -294,12 +361,40 @@ function initNavigation() {
                 window.refreshClosedItems();
             }
 
+            if (pageName === 'create-invoice' && typeof window.loadDCList === 'function') {
+                window.loadDCList();
+            }
+            
+            if (pageName === 'view-dc' && typeof window.renderDCList === 'function') {
+                window.renderDCList();
+            }
+
             // Reset DC No if creating new
             if (pageName === 'add-dc') {
                 const dcNoInput = document.getElementById('dc-number-input');
                 const form = document.getElementById('form-add-dc');
-                if (dcNoInput && (!form.dataset.editMode || form.dataset.editMode !== 'true')) {
-                    dcNoInput.value = getNextDCNo();
+                const tbody = document.getElementById('dc-items-body');
+                
+                if (form) {
+                    form.reset();
+                    if (tbody) {
+                        while (tbody.children.length > 1) tbody.removeChild(tbody.lastChild);
+                        const firstRowInputs = tbody.children[0].querySelectorAll('input');
+                        firstRowInputs.forEach(input => input.value = '');
+                    }
+                    delete form.dataset.editMode;
+                    delete form.dataset.editDcNo;
+                    window.currentEditRow = null;
+                    
+                    const submitBtn = form.querySelector('button[type="submit"]');
+                    if (submitBtn) {
+                        submitBtn.innerHTML = 'Submit';
+                        submitBtn.style.background = '#10b981';
+                    }
+                    
+                    if (dcNoInput) {
+                        dcNoInput.value = getNextDCNo();
+                    }
                 }
             }
         });
@@ -348,9 +443,12 @@ function initInvoiceForm() {
 
     if (!btnAddRow || !tbody) return;
 
-    function formatCurrency(num) {
-        return '$' + num.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,');
+    // Load defaults from settings
+    const profile = JSON.parse(localStorage.getItem('invoice_flow_company_profile') || '{}');
+    if (profile.defaultTax && taxRateSelect && !taxRateSelect.dataset.manualSet) {
+        taxRateSelect.value = profile.defaultTax;
     }
+
 
     function calculateTotal() {
         let subtotal = 0;
@@ -384,11 +482,116 @@ function initInvoiceForm() {
         taxRateSelect.addEventListener('change', calculateTotal);
     }
 
+    function populateSuppliers() {
+        const supplierSelect = document.getElementById('input-vendor-entity');
+        if (supplierSelect) {
+            const customers = JSON.parse(localStorage.getItem('invoice_flow_customers') || '[]');
+            const profile = JSON.parse(localStorage.getItem('invoice_flow_company_profile') || '{}');
+            const currentVal = supplierSelect.value;
+            supplierSelect.innerHTML = '<option value="">Select Supplier</option>' + 
+                customers.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+            if (currentVal) supplierSelect.value = currentVal;
+            else if (profile.defaultCustomer) supplierSelect.value = profile.defaultCustomer;
+        }
+    }
+    populateSuppliers();
+
+    // Removed loadDCList - no longer using datalist dropdown symbol
+
+    function autofillFromDC(row) {
+        const dcNo = row.querySelector('.dc-input').value.trim();
+        if (!dcNo) return;
+
+        const dcs = JSON.parse(localStorage.getItem('invoice_flow_dcs') || '[]');
+        // Match exact or match prefix (e.g., "001" matches "001 - 26/27")
+        const dc = dcs.find(d => d.dcNo === dcNo || d.dcNo.split(' ')[0] === dcNo);
+        
+        if (dc) {
+            // Filter items that have an Inv Item Code and a Rate
+            const filteredItems = dc.items.filter(item => item.invCode && item.rate);
+            
+            if (filteredItems.length === 0) {
+                if (typeof showNotification === 'function') {
+                    showNotification(`DC "${dc.dcNo}" found, but no items have an "Inv Item Code" and "Rate".`, 'warning');
+                } else {
+                    alert(`DC "${dc.dcNo}" found, but no items have an "Inv Item Code" and "Rate". Please check the DC items.`);
+                }
+                return;
+            }
+
+            // Fill the current row with the first filtered item
+            const firstItem = filteredItems[0];
+            row.querySelector('.dc-input').value = dc.dcNo; // Update to full DC No with FY
+            row.querySelector('.po-input').value = firstItem.poNo || '';
+            row.querySelector('.item-input').value = firstItem.invCode || firstItem.code || '';
+            row.querySelector('.qty-input').value = firstItem.qty || 1;
+            row.querySelector('.price-input').value = firstItem.rate || 0;
+            
+            // Mark as autofilled to prevent loops or duplicates
+            row.dataset.lastAutofilledDc = dc.dcNo;
+            
+            // If there are more items, add new rows for them
+            // BUT only if we haven't already added them in this session for this row
+            if (row.dataset.rowsAdded === 'true') return;
+            row.dataset.rowsAdded = 'true';
+
+            for (let i = 1; i < filteredItems.length; i++) {
+                const item = filteredItems[i];
+                const newRow = document.createElement('tr');
+                newRow.style.borderBottom = '1px solid var(--color-neutral-100)';
+                newRow.style.transition = 'background 0.2s';
+                newRow.innerHTML = `
+                    <td style="padding: 16px;">
+                        <input type="text" value="${dc.dcNo}" autocomplete="off" class="form-control dc-input" style="width: 100%; padding: 8px; background: transparent; border: 1px solid transparent; font-family: inherit; font-size: 0.875rem; outline: none; border-radius: 4px;">
+                    </td>
+                    <td style="padding: 16px;">
+                        <input type="text" value="${item.poNo || ''}" class="form-control po-input" style="width: 100%; padding: 8px; background: transparent; border: 1px solid transparent; font-family: inherit; font-size: 0.875rem; outline: none; border-radius: 4px;">
+                    </td>
+                    <td style="padding: 16px;">
+                        <input type="text" value="${item.invCode || item.code || ''}" class="form-control item-input" style="width: 100%; padding: 8px; background: transparent; border: 1px solid transparent; font-family: inherit; font-size: 0.875rem; outline: none; border-radius: 4px;">
+                    </td>
+                    <td style="padding: 16px;">
+                        <input type="number" class="form-control qty-input" value="${item.qty || 1}" style="width: 60px; padding: 8px; background: transparent; border: 1px solid transparent; font-family: inherit; font-size: 0.875rem; outline: none; border-radius: 4px;">
+                    </td>
+                    <td style="padding: 16px; color: var(--color-neutral-500);">
+                        ₹ <input type="number" class="form-control price-input" value="${item.rate || 0}" style="width: 80px; padding: 8px; background: transparent; border: 1px solid transparent; font-family: inherit; font-size: 0.875rem; outline: none; border-radius: 4px; color: var(--color-neutral-600);">
+                    </td>
+                    <td style="padding: 16px; font-weight: 700; color: var(--color-primary-900);">
+                        <span class="amount-val">₹ 0.00</span>
+                    </td>
+                    <td style="padding: 16px; text-align: right;">
+                        <button class="btn-remove-row" style="background: transparent; color: var(--color-neutral-400); border: none; cursor: pointer; font-size: 1rem; padding: 4px 8px; border-radius: 4px; transition: 0.2s;" onmouseover="this.style.color='var(--color-error-600)'" onmouseout="this.style.color='var(--color-neutral-400)'"><i class="fas fa-times"></i></button>
+                    </td>
+                `;
+                tbody.appendChild(newRow);
+                attachRowEvents(newRow);
+            }
+            calculateTotal();
+        }
+    }
+
     function attachRowEvents(row) {
+        const dcInput = row.querySelector('.dc-input');
         const qtyInput = row.querySelector('.qty-input');
         const priceInput = row.querySelector('.price-input');
         const btnRemove = row.querySelector('.btn-remove-row');
 
+        if (dcInput) {
+            dcInput.setAttribute('autocomplete', 'off');
+            dcInput.addEventListener('change', () => {
+                const val = dcInput.value.trim();
+                if (!val || val === row.dataset.lastAutofilledDc) return;
+                autofillFromDC(row);
+            });
+            
+            // Trigger autofill on Enter key
+            dcInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    dcInput.blur(); 
+                }
+            });
+        }
         if (qtyInput) qtyInput.addEventListener('input', calculateTotal);
         if (priceInput) priceInput.addEventListener('input', calculateTotal);
         
@@ -401,8 +604,11 @@ function initInvoiceForm() {
         }
     }
 
-    // Attach events to initial row
+    // Attach events to existing rows and add one initial row if empty
     tbody.querySelectorAll('tr').forEach(attachRowEvents);
+    if (tbody.querySelectorAll('tr').length === 0) {
+        btnAddRow.click();
+    }
 
     // Add new row
     btnAddRow.addEventListener('click', (e) => {
@@ -412,7 +618,7 @@ function initInvoiceForm() {
         tr.style.transition = 'background 0.2s';
         tr.innerHTML = `
             <td style="padding: 16px;">
-                <input type="text" value="DC-0000" class="form-control dc-input" style="width: 100%; padding: 8px; background: transparent; border: 1px solid transparent; font-family: inherit; font-size: 0.875rem; outline: none; border-radius: 4px;">
+                <input type="text" placeholder="DC No" autocomplete="off" class="form-control dc-input" style="width: 100%; padding: 8px; background: transparent; border: 1px solid transparent; font-family: inherit; font-size: 0.875rem; outline: none; border-radius: 4px;">
             </td>
             <td style="padding: 16px;">
                 <input type="text" value="000" class="form-control po-input" style="width: 100%; padding: 8px; background: transparent; border: 1px solid transparent; font-family: inherit; font-size: 0.875rem; outline: none; border-radius: 4px;">
@@ -424,10 +630,10 @@ function initInvoiceForm() {
                 <input type="number" class="form-control qty-input" value="1" style="width: 60px; padding: 8px; background: transparent; border: 1px solid transparent; font-family: inherit; font-size: 0.875rem; outline: none; border-radius: 4px;">
             </td>
             <td style="padding: 16px; color: var(--color-neutral-500);">
-                $ <input type="number" class="form-control price-input" value="0.00" style="width: 80px; padding: 8px; background: transparent; border: 1px solid transparent; font-family: inherit; font-size: 0.875rem; outline: none; border-radius: 4px; color: var(--color-neutral-600);">
+                ₹ <input type="number" class="form-control price-input" value="0.00" style="width: 80px; padding: 8px; background: transparent; border: 1px solid transparent; font-family: inherit; font-size: 0.875rem; outline: none; border-radius: 4px; color: var(--color-neutral-600);">
             </td>
             <td style="padding: 16px; font-weight: 700; color: var(--color-primary-900);">
-                <span class="amount-val">$0.00</span>
+                <span class="amount-val">₹ 0.00</span>
             </td>
             <td style="padding: 16px; text-align: right;">
                 <button class="btn-remove-row" style="background: transparent; color: var(--color-neutral-400); border: none; cursor: pointer; font-size: 1rem; padding: 4px 8px; border-radius: 4px; transition: 0.2s;" onmouseover="this.style.color='var(--color-error-600)'" onmouseout="this.style.color='var(--color-neutral-400)'"><i class="fas fa-times"></i></button>
@@ -438,9 +644,9 @@ function initInvoiceForm() {
         calculateTotal();
     });
 
-    // Initialize with two rows like the screenshot
-    btnAddRow.click();
-    btnAddRow.click();
+    // Initialize with one row if empty (handled by line 591)
+    // btnAddRow.click();
+    // btnAddRow.click();
 
     // Submit buttons transition to print preview
     const btnSubmitTop = document.getElementById('btn-submit-invoice-top');
@@ -485,9 +691,9 @@ function initInvoiceForm() {
                     <td style="border: 1px solid black; padding: 6px;">${dc}</td>
                     <td style="border: 1px solid black; padding: 6px;">${po}</td>
                     <td style="border: 1px solid black; padding: 6px;">${item}</td>
-                    <td style="border: 1px solid black; padding: 6px;">${qty}</td>
-                    <td style="border: 1px solid black; padding: 6px;">${parseFloat(price||0).toFixed(2)}</td>
-                    <td style="border: 1px solid black; padding: 6px; text-align: right;">${formatCurrency(amount).replace('$', '')}</td>
+                    <td style="border: 1px solid black; padding: 6px;">${parseFloat(qty || 0) % 1 === 0 ? parseFloat(qty || 0) : parseFloat(qty || 0).toFixed(2)}</td>
+                    <td style="border: 1px solid black; padding: 6px;">${parseFloat(price || 0) % 1 === 0 ? parseFloat(price || 0) : parseFloat(price || 0).toFixed(2)}</td>
+                    <td style="border: 1px solid black; padding: 6px; text-align: right;">${formatCurrency(amount)}</td>
                 `;
                 printTableBody.appendChild(tr);
             });
@@ -522,8 +728,8 @@ function initInvoiceForm() {
                 if (printIgstLabel) printIgstLabel.textContent = `IGST (${taxRate}%)`;
 
                 const halfTax = taxAmount / 2;
-                printCgst.textContent = formatCurrency(halfTax).replace('$', '');
-                printSgst.textContent = formatCurrency(halfTax).replace('$', '');
+                printCgst.textContent = formatCurrency(halfTax);
+                printSgst.textContent = formatCurrency(halfTax);
                 printIgst.textContent = '-';
             } else {
                 if (printCgstLabel) printCgstLabel.textContent = `CGST (0%)`;
@@ -692,24 +898,75 @@ style.textContent = `
 document.head.appendChild(style);
 
 /* ---- Vendor Form Logic ---- */
-function initVendorForm() {
-    const form = document.getElementById('form-add-vendor');
-    if (!form) {
-        console.error('Vendor Form not found in DOM!');
-        return;
+function initSupplierForm() {
+    const form = document.getElementById('form-add-supplier');
+    const tbody = document.getElementById('suppliers-table-body');
+    if (!form || !tbody) return;
+
+    const STORAGE_KEY = 'invoice_flow_customers';
+    const getSuppliers = () => JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    const saveSuppliers = (suppliers) => localStorage.setItem(STORAGE_KEY, JSON.stringify(suppliers));
+
+    function renderSuppliers(filter = '') {
+        const suppliers = getSuppliers();
+        const filtered = suppliers.filter(s => 
+            s.name.toLowerCase().includes(filter.toLowerCase()) ||
+            (s.code && s.code.toLowerCase().includes(filter.toLowerCase())) ||
+            (s.gst && s.gst.toLowerCase().includes(filter.toLowerCase()))
+        );
+
+        if (filtered.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="8" style="padding: 40px; text-align: center; color: var(--color-neutral-400);">No suppliers found.</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = filtered.map((s, index) => {
+            const imageHtml = s.imgUrl 
+                ? `<img src="${s.imgUrl}" style="width: 40px; height: 40px; border-radius: 8px; object-fit: cover;">`
+                : `<div style="width: 40px; height: 40px; border-radius: 8px; background: #e2e8f0; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; color: #64748b;"><i class="fas fa-truck-field"></i></div>`;
+
+            return `
+                <tr style="border-bottom: 1px solid var(--color-neutral-100); transition: background 0.2s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">
+                    <td style="padding: 16px;">${imageHtml}</td>
+                    <td style="padding: 16px; font-size: 0.875rem; color: var(--color-neutral-700); font-weight: 600;">${s.type === '1' ? 'Service' : s.type === '2' ? 'Goods' : 'Sub-Con'}</td>
+                    <td style="padding: 16px;">
+                        <div style="font-weight: 700; color: var(--color-primary-900); font-size: 0.875rem;">${s.name}</div>
+                        <div style="font-size: 0.75rem; color: var(--color-neutral-500); margin-top: 4px;">Code: ${s.code || 'N/A'}</div>
+                    </td>
+                    <td style="padding: 16px;">
+                        <div style="font-size: 0.875rem; color: var(--color-neutral-700);"><i class="fas fa-phone" style="font-size: 0.75rem; color: var(--color-neutral-400); margin-right: 6px;"></i> ${s.phone || 'N/A'}</div>
+                        <div style="font-size: 0.75rem; color: var(--color-neutral-500); margin-top: 4px;"><i class="fas fa-envelope" style="font-size: 0.75rem; color: var(--color-neutral-400); margin-right: 6px;"></i> ${s.email || 'N/A'}</div>
+                    </td>
+                    <td style="padding: 16px;">
+                        <div style="font-size: 0.875rem; color: var(--color-neutral-700);">${s.address || 'N/A'}</div>
+                        <div style="font-size: 0.75rem; color: var(--color-neutral-500); margin-top: 4px;">${s.state || ''}</div>
+                    </td>
+                    <td style="padding: 16px;">
+                        <div style="font-size: 0.875rem; color: var(--color-neutral-700);"><span style="color: var(--color-neutral-500); font-size: 0.75rem;">PAN:</span> ${s.pan || 'N/A'}</div>
+                        <div style="font-size: 0.875rem; color: var(--color-neutral-700); margin-top: 4px;"><span style="color: var(--color-neutral-500); font-size: 0.75rem;">GST:</span> ${s.gst || 'N/A'}</div>
+                    </td>
+                    <td style="padding: 16px;"><span style="background: var(--color-success-50); color: var(--color-success-700); padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 700; border: 1px solid var(--color-success-200);">Active</span></td>
+                    <td style="padding: 16px; text-align: right;">
+                        <div style="display: flex; justify-content: flex-end; gap: 8px;">
+                            <button onclick="editSupplier(${index})" style="background: transparent; color: var(--color-primary-600); border: none; cursor: pointer; padding: 4px;" title="Edit"><i class="fas fa-pen"></i></button>
+                            <button onclick="deleteSupplier(${index})" style="background: transparent; color: #ef4444; border: none; cursor: pointer; padding: 4px;" title="Delete"><i class="fas fa-trash"></i></button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
     }
 
-    console.log('Vendor Form initialized and listener attached.');
+    renderSuppliers();
 
     // Image Upload Handling
-    const imgContainer = document.getElementById('vendor-image-container');
-    const imgInput = document.getElementById('vendor-image-input');
-    const imgPreview = document.getElementById('vendor-image-preview');
-    const imgPlaceholder = document.getElementById('vendor-image-placeholder');
+    const imgContainer = document.getElementById('supplier-image-container');
+    const imgInput = document.getElementById('supplier-image-input');
+    const imgPreview = document.getElementById('supplier-image-preview');
+    const imgPlaceholder = document.getElementById('supplier-image-placeholder');
 
     if (imgContainer && imgInput) {
         imgContainer.addEventListener('click', () => imgInput.click());
-
         imgInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (file) {
@@ -719,7 +976,6 @@ function initVendorForm() {
                     imgPreview.style.display = 'block';
                     imgPlaceholder.style.display = 'none';
                     imgContainer.dataset.hasImage = 'true';
-                    imgContainer.style.borderColor = 'var(--color-primary-400)';
                 };
                 reader.readAsDataURL(file);
             }
@@ -728,162 +984,97 @@ function initVendorForm() {
 
     form.addEventListener('submit', (e) => {
         e.preventDefault();
-        console.log('Vendor Form submit event intercepted!');
-        
-        // 1. Grab values from the form
-        const name = document.getElementById('vendor-name').value;
-        const type = document.getElementById('vendor-type').value;
-        const phone = document.getElementById('vendor-phone').value;
-        const email = document.getElementById('vendor-email').value;
-        const address = document.getElementById('vendor-address').value;
-        const state = document.getElementById('vendor-state').value;
-        const code = document.getElementById('vendor-code').value;
-        const pan = document.getElementById('vendor-pan').value;
-        const gst = document.getElementById('vendor-gst').value;
-        const imgUrl = imgPreview.style.display !== 'none' ? imgPreview.src : null;
+        const supplier = {
+            name: document.getElementById('supplier-name').value,
+            type: document.getElementById('supplier-type').value,
+            phone: document.getElementById('supplier-phone').value,
+            email: document.getElementById('supplier-email').value,
+            address: document.getElementById('supplier-address').value,
+            state: document.getElementById('supplier-state').value,
+            code: document.getElementById('supplier-code').value,
+            pan: document.getElementById('supplier-pan').value,
+            gst: document.getElementById('supplier-gst').value,
+            imgUrl: imgPreview.style.display !== 'none' ? imgPreview.src : null,
+            createdAt: new Date().toISOString()
+        };
 
-        const imageHtml = imgUrl 
-            ? `<img src="${imgUrl}" style="width: 40px; height: 40px; border-radius: 8px; object-fit: cover;">`
-            : `<div style="width: 40px; height: 40px; border-radius: 8px; background: #e2e8f0; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; color: #64748b;">
-                <i class="fas fa-building"></i>
-               </div>`;
-
-        const rowContent = `
-            <td style="padding: 16px;">
-                ${imageHtml}
-            </td>
-            <td style="padding: 16px; font-size: 0.875rem; color: var(--color-neutral-700); font-weight: 600;">${type}</td>
-            <td style="padding: 16px;">
-                <div style="font-weight: 700; color: var(--color-primary-900); font-size: 0.875rem;">${name}</div>
-                <div style="font-size: 0.75rem; color: var(--color-neutral-500); margin-top: 4px;">Code: ${code}</div>
-            </td>
-            <td style="padding: 16px;">
-                <div style="font-size: 0.875rem; color: var(--color-neutral-700);"><i class="fas fa-phone" style="font-size: 0.75rem; color: var(--color-neutral-400); margin-right: 6px;"></i> ${phone}</div>
-                <div style="font-size: 0.75rem; color: var(--color-neutral-500); margin-top: 4px;"><i class="fas fa-envelope" style="font-size: 0.75rem; color: var(--color-neutral-400); margin-right: 6px;"></i> ${email}</div>
-            </td>
-            <td style="padding: 16px;">
-                <div style="font-size: 0.875rem; color: var(--color-neutral-700);">${address}</div>
-                <div style="font-size: 0.75rem; color: var(--color-neutral-500); margin-top: 4px;">${state}</div>
-            </td>
-            <td style="padding: 16px;">
-                <div style="font-size: 0.875rem; color: var(--color-neutral-700);"><span style="color: var(--color-neutral-500); font-size: 0.75rem;">PAN:</span> ${pan}</div>
-                <div style="font-size: 0.875rem; color: var(--color-neutral-700); margin-top: 4px;"><span style="color: var(--color-neutral-500); font-size: 0.75rem;">GST:</span> ${gst}</div>
-            </td>
-            <td style="padding: 16px;">
-                <span style="background: var(--color-success-50); color: var(--color-success-700); padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 700; border: 1px solid var(--color-success-200);">Active</span>
-            </td>
-            <td style="padding: 16px; text-align: right;">
-                <button class="btn-edit-vendor" style="background: transparent; color: var(--color-primary-600); border: none; cursor: pointer; padding: 4px; border-radius: 4px; transition: 0.2s;" onmouseover="this.style.background='var(--color-primary-50)'" onmouseout="this.style.background='transparent'"><i class="fas fa-pen"></i></button>
-            </td>
-        `;
-
-        // 2. Create or Update row
-        const tbody = document.getElementById('vendor-table-body');
-        if (tbody) {
-            if (form.dataset.editRowIndex !== undefined) {
-                // Update existing row
-                const rowIndex = parseInt(form.dataset.editRowIndex);
-                tbody.children[rowIndex].innerHTML = rowContent;
-            } else {
-                // Create new row
-                const newRow = document.createElement('tr');
-                newRow.style.borderBottom = '1px solid var(--color-neutral-100)';
-                newRow.style.transition = 'background 0.2s';
-                newRow.onmouseover = () => newRow.style.background = '#f8fafc';
-                newRow.onmouseout = () => newRow.style.background = 'transparent';
-                newRow.innerHTML = rowContent;
-                tbody.prepend(newRow);
-            }
+        const suppliers = getSuppliers();
+        if (form.dataset.editIndex !== undefined) {
+            suppliers[parseInt(form.dataset.editIndex)] = supplier;
+            delete form.dataset.editIndex;
+        } else {
+            suppliers.unshift(supplier);
         }
-
-        // 3. UI Feedback and Navigation
-        const btn = form.querySelector('button[type="submit"]');
-        const originalText = btn.innerHTML;
-        btn.innerHTML = '<i class="fas fa-check"></i> Saved!';
-        btn.style.background = 'var(--color-success-600)';
-        btn.disabled = true;
-
-        setTimeout(() => {
-            form.reset();
-            delete form.dataset.editRowIndex; // Clear edit state
-            const header = document.querySelector('#page-add-vendor h2');
-            if (header) header.textContent = 'Add New Vendor';
-
-            imgPreview.style.display = 'none';
-            imgPlaceholder.style.display = 'flex';
-            imgContainer.dataset.hasImage = '';
-            imgContainer.style.borderColor = 'var(--color-neutral-200)';
-            
-            btn.innerHTML = originalText;
-            btn.style.background = '';
-            btn.disabled = false;
-
-            const viewVendorsNav = document.getElementById('nav-view-vendors');
-            if (viewVendorsNav) viewVendorsNav.click();
-        }, 800);
+        saveSuppliers(suppliers);
+        
+        form.reset();
+        imgPreview.style.display = 'none';
+        imgPlaceholder.style.display = 'flex';
+        renderSuppliers();
+        
+        if (typeof showNotification === 'function') showNotification('Supplier saved successfully', 'success');
+        document.getElementById('nav-view-suppliers').click();
     });
 
-    // Handle Edit Button Click
-    const tbody = document.getElementById('vendor-table-body');
-    if (tbody) {
-        tbody.addEventListener('click', (e) => {
-            const btn = e.target.closest('.btn-edit-vendor');
-            if (!btn) return;
-
-            const row = btn.closest('tr');
-            const cells = row.querySelectorAll('td');
-            
-            // Extract data from cells
-            // Column mapping: 0:Image, 1:Type, 2:Name/Code, 3:Phone/Email, 4:Address/State, 5:PAN/GST
-            const type = cells[1].textContent.trim();
-            const name = cells[2].querySelector('div:first-child').textContent.trim();
-            const code = cells[2].querySelector('div:last-child').textContent.replace('Code: ', '').trim();
-            const phone = cells[3].querySelector('div:first-child').textContent.trim();
-            const email = cells[3].querySelector('div:last-child').textContent.trim();
-            const address = cells[4].querySelector('div:first-child').textContent.trim();
-            const state = cells[4].querySelector('div:last-child').textContent.trim();
-            const pan = cells[5].querySelector('div:first-child').textContent.replace('PAN: ', '').trim();
-            const gst = cells[5].querySelector('div:last-child').textContent.replace('GST: ', '').trim();
-            
-            // Fill form
-            document.getElementById('vendor-name').value = name;
-            document.getElementById('vendor-type').value = type;
-            document.getElementById('vendor-phone').value = phone;
-            document.getElementById('vendor-email').value = email;
-            document.getElementById('vendor-address').value = address;
-            document.getElementById('vendor-state').value = state;
-            document.getElementById('vendor-code').value = code;
-            document.getElementById('vendor-pan').value = pan;
-            document.getElementById('vendor-gst').value = gst;
-
-            // Handle image preview if exists
-            const img = cells[0].querySelector('img');
-            if (img) {
-                imgPreview.src = img.src;
-                imgPreview.style.display = 'block';
-                imgPlaceholder.style.display = 'none';
-                imgContainer.dataset.hasImage = 'true';
-            } else {
-                imgPreview.style.display = 'none';
-                imgPlaceholder.style.display = 'flex';
-                imgContainer.dataset.hasImage = '';
-            }
-
-            // Change header and go to page
-            const header = document.querySelector('#page-add-vendor h2');
-            if (header) header.textContent = 'Edit Vendor';
-            
-            const addNav = document.getElementById('nav-add-vendor');
-            if (addNav) addNav.click();
-            
-            // Store that we are editing this row
-            form.dataset.editRowIndex = Array.from(tbody.children).indexOf(row);
-        });
+    const searchInput = document.getElementById('search-suppliers');
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => renderSuppliers(e.target.value));
     }
+
+    window.editSupplier = function(index) {
+        const suppliers = getSuppliers();
+        const s = suppliers[index];
+        if (!s) return;
+
+        document.getElementById('supplier-name').value = s.name;
+        document.getElementById('supplier-type').value = s.type;
+        document.getElementById('supplier-phone').value = s.phone;
+        document.getElementById('supplier-email').value = s.email;
+        document.getElementById('supplier-address').value = s.address;
+        document.getElementById('supplier-state').value = s.state;
+        document.getElementById('supplier-code').value = s.code;
+        document.getElementById('supplier-pan').value = s.pan;
+        document.getElementById('supplier-gst').value = s.gst;
+        
+        if (s.imgUrl) {
+            imgPreview.src = s.imgUrl;
+            imgPreview.style.display = 'block';
+            imgPlaceholder.style.display = 'none';
+        } else {
+            imgPreview.style.display = 'none';
+            imgPlaceholder.style.display = 'flex';
+        }
+
+        form.dataset.editIndex = index;
+        document.getElementById('nav-add-supplier').click();
+    };
+
+    window.deleteSupplier = function(index) {
+        if (!confirm('Are you sure you want to delete this supplier?')) return;
+        const suppliers = getSuppliers();
+        suppliers.splice(index, 1);
+        saveSuppliers(suppliers);
+        renderSuppliers();
+        if (typeof showNotification === 'function') showNotification('Supplier deleted', 'info');
+    };
 }
 
 /* ---- Delivery Challan (DC) Logic ---- */
 function initDCForm() {
+    function populateSuppliers() {
+        const supplierSelect = document.getElementById('dc-vendor');
+        if (supplierSelect) {
+            const customers = JSON.parse(localStorage.getItem('invoice_flow_customers') || '[]');
+            const profile = JSON.parse(localStorage.getItem('invoice_flow_company_profile') || '{}');
+            const currentVal = supplierSelect.value;
+            supplierSelect.innerHTML = '<option value="">Select Supplier</option>' + 
+                customers.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+            if (currentVal) supplierSelect.value = currentVal;
+            else if (profile.defaultCustomer) supplierSelect.value = profile.defaultCustomer;
+        }
+    }
+    populateSuppliers();
+
     const form = document.getElementById('form-add-dc');
     const btnAddRow = document.getElementById('btn-dc-add-row');
     const tbody = document.getElementById('dc-items-body');
@@ -941,8 +1132,17 @@ function initDCForm() {
         const modal = document.getElementById('modal-rdc-selector');
         const selectorBody = document.getElementById('rdc-selector-body');
         const btnBulkAdd = document.getElementById('btn-bulk-add-rdc');
+        const btnCreateNew = document.getElementById('btn-create-rdc-from-modal');
         const selectAll = document.getElementById('rdc-select-all');
         if (!modal || !selectorBody || !btnBulkAdd) return;
+
+        if (btnCreateNew) {
+            btnCreateNew.onclick = () => {
+                modal.style.display = 'none';
+                const mainCreateBtn = document.getElementById('btn-create-new-rdc');
+                if (mainCreateBtn) mainCreateBtn.click();
+            };
+        }
 
         if (selectAll) selectAll.checked = false;
 
@@ -969,7 +1169,9 @@ function initDCForm() {
 
         const renderSelector = (items) => {
             if (items.length === 0) {
-                selectorBody.innerHTML = `<tr><td colspan="5" style="padding: 24px; text-align: center; color: var(--color-neutral-400);">No available RDC items found.</td></tr>`;
+                selectorBody.innerHTML = `<tr><td colspan="5" style="padding: 24px; text-align: center; color: var(--color-neutral-400);">
+                    No available RDC items found. <a href="#" onclick="document.getElementById('modal-rdc-selector').style.display='none'; document.getElementById('btn-create-new-rdc')?.click(); return false;" style="color: var(--color-primary-600); text-decoration: underline;">Create one now</a>
+                </td></tr>`;
                 return;
             }
             selectorBody.innerHTML = items.map((item, idx) => `
@@ -1059,14 +1261,46 @@ function initDCForm() {
         }
     });
 
+    // Rate based PO Autofill
+    tbody.addEventListener('change', (e) => {
+        const target = e.target;
+        const row = target.closest('tr');
+        if (!row) return;
+        const inputs = row.querySelectorAll('input');
+        
+        // Rate input is at index 7
+        if (target === inputs[7]) {
+            const enteredRate = parseFloat(target.value);
+            if (isNaN(enteredRate) || enteredRate <= 0) return;
+
+            const pos = JSON.parse(localStorage.getItem('invoice_flow_pos') || '[]');
+            let match = null;
+
+            // Search through all POs for a matching rate
+            for (const po of pos) {
+                const item = po.items.find(it => parseFloat(it.rate) === enteredRate);
+                if (item) {
+                    match = { poNo: po.no, invCode: item.itemCode };
+                    break;
+                }
+            }
+
+            if (match) {
+                inputs[0].value = match.poNo;    // PO Order No
+                inputs[9].value = match.invCode; // Inv Item Code
+                showNotification(`Matched with PO: ${match.poNo}`, 'success');
+            } else {
+                showNotification('item rate is not available', 'warning');
+            }
+        }
+    });
+
     // Handle form submit
     form.addEventListener('submit', (e) => {
         e.preventDefault();
         
         // 1. Extract Header Data
         const dcDate = document.getElementById('dc-date').value;
-        const orderNo = document.getElementById('dc-order-no').value;
-        const orderDate = document.getElementById('dc-order-date').value;
         const vendorName = document.getElementById('dc-vendor').value;
         const dcNoInput = document.getElementById('dc-number-input').value.trim();
         const dcNo = dcNoInput || getNextDCNo();
@@ -1127,14 +1361,13 @@ function initDCForm() {
                 targetRow.style.borderBottom = '1px solid var(--color-neutral-100)';
             }
 
-            const dcData = { dcDate, orderNo, orderDate, vendorName, dcNo: finalDcNo, items, totalQty };
+            const dcData = { dcDate, vendorName, dcNo: finalDcNo, items, totalQty };
             targetRow.dataset.dcData = JSON.stringify(dcData);
             
             targetRow.innerHTML = `
                 <td style="padding: 16px; font-size: 0.875rem;">${dcDate}</td>
                 <td style="padding: 16px; font-size: 0.875rem; font-weight: 700; color: var(--color-primary-900);">${finalDcNo}</td>
                 <td style="padding: 16px; font-size: 0.875rem;">${vendorName}</td>
-                <td style="padding: 16px; font-size: 0.875rem;">${orderNo}</td>
                 <td style="padding: 16px; font-size: 0.875rem;">${items.length} Items</td>
                 <td style="padding: 16px; display: flex; justify-content: flex-end; gap: 12px;">
                     <button class="btn-edit-row" style="background: transparent; color: var(--color-neutral-600); border: none; cursor: pointer; padding: 4px; transition: color 0.2s;" onmouseover="this.style.color='var(--color-primary-600)'" onmouseout="this.style.color='var(--color-neutral-600)'" title="Edit"><i class="fas fa-edit"></i></button>
@@ -1145,6 +1378,25 @@ function initDCForm() {
             if (form.dataset.editMode !== 'true') {
                 viewTableBody.prepend(targetRow);
             }
+
+            // Save to localStorage
+            const dcs = JSON.parse(localStorage.getItem('invoice_flow_dcs') || '[]');
+            let existingIndex = -1;
+
+            if (form.dataset.editMode === 'true' && form.dataset.editDcNo) {
+                existingIndex = dcs.findIndex(d => d.dcNo === form.dataset.editDcNo);
+            } else {
+                // Check if DC No already exists (for manual entry or double submission)
+                existingIndex = dcs.findIndex(d => d.dcNo === dcData.dcNo);
+            }
+
+            if (existingIndex > -1) {
+                dcs[existingIndex] = dcData;
+            } else {
+                dcs.unshift(dcData);
+            }
+            localStorage.setItem('invoice_flow_dcs', JSON.stringify(dcs));
+            if (typeof window.renderDCList === 'function') window.renderDCList();
         }
 
         // 4. Populate Print Template (Both Copies)
@@ -1154,10 +1406,8 @@ function initDCForm() {
 
         updateText('print-dc-no', dcNo);
         updateText('print-dc-date', dcDate);
-        updateText('print-dc-order-no', orderNo);
-        updateText('print-dc-order-date', orderDate);
         updateText('print-dc-vendor-name', vendorName);
-        updateText('print-dc-total-qty', totalQty);
+        updateText('print-dc-total-qty', totalQty % 1 === 0 ? totalQty : totalQty.toFixed(2));
         
         // Update both table bodies
         document.querySelectorAll('.print-dc-table-body').forEach(printTableBody => {
@@ -1168,10 +1418,10 @@ function initDCForm() {
                 tr.innerHTML = `
                     <td style="padding: 6px; border-right: 1px solid #e2e8f0; text-align: center;">${item.sno}</td>
                     <td style="padding: 6px; border-right: 1px solid #e2e8f0; text-align: left;">${item.desc}</td>
-                    <td style="padding: 6px; border-right: 1px solid #e2e8f0; text-align: center;">${item.qty}</td>
+                    <td style="padding: 6px; border-right: 1px solid #e2e8f0; text-align: center;">${parseFloat(item.qty) % 1 === 0 ? parseFloat(item.qty) : parseFloat(item.qty).toFixed(2)}</td>
                     <td style="padding: 6px; border-right: 1px solid #e2e8f0; text-align: center;">${item.code}</td>
                     <td style="padding: 6px; border-right: 1px solid #e2e8f0; text-align: center;">${item.hsn}</td>
-                    <td style="padding: 6px; border-right: 1px solid #e2e8f0; text-align: center;">${item.totalQty}</td>
+                    <td style="padding: 6px; border-right: 1px solid #e2e8f0; text-align: center;">${parseFloat(item.totalQty) % 1 === 0 ? parseFloat(item.totalQty) : parseFloat(item.totalQty).toFixed(2)}</td>
                     <td style="padding: 6px; text-align: left;">${item.remark}</td>
                 `;
                 printTableBody.appendChild(tr);
@@ -1214,6 +1464,7 @@ function initDCForm() {
             while (tbody.children.length > 1) tbody.removeChild(tbody.lastChild);
             
             delete form.dataset.editMode;
+            delete form.dataset.editDcNo;
             window.currentEditRow = null;
 
             submitBtn.innerHTML = 'Submit';
@@ -1262,8 +1513,6 @@ function initDCForm() {
             
             // Set values
             document.getElementById('dc-date').value = data.dcDate;
-            document.getElementById('dc-order-no').value = data.orderNo;
-            document.getElementById('dc-order-date').value = data.orderDate;
             document.getElementById('dc-vendor').value = data.vendorName;
             document.getElementById('dc-number-input').value = data.dcNo || '';
             
@@ -1290,6 +1539,7 @@ function initDCForm() {
             });
 
             form.dataset.editMode = 'true';
+            form.dataset.editDcNo = data.dcNo;
             window.currentEditRow = row;
             form.querySelector('button[type="submit"]').innerHTML = '<i class="fas fa-save"></i> Update Challan';
             window.scrollTo(0,0);
@@ -1306,8 +1556,6 @@ function initDCForm() {
 
             updateText('print-dc-no', data.dcNo);
             updateText('print-dc-date', data.dcDate);
-            updateText('print-dc-order-no', data.orderNo);
-            updateText('print-dc-order-date', data.orderDate);
             updateText('print-dc-vendor-name', data.vendorName);
             updateText('print-dc-total-qty', data.totalQty);
             
@@ -1384,7 +1632,7 @@ function initLoadingSheets() {
         const cutting = parseFloat(itemCutting.value) || 0;
         const rate = parseFloat(itemRate.value) || 0;
         const total = nos * cutting * rate; 
-        itemTotal.value = total.toFixed(2);
+        itemTotal.value = total % 1 === 0 ? total : total.toFixed(2);
     }
 
     [itemNos, itemRate, itemCutting].forEach(el => {
@@ -1501,9 +1749,9 @@ function initLoadingSheets() {
                 <td style="padding: 12px 16px; font-size: 0.875rem; color: var(--color-neutral-700);">${item.name}</td>
                 <td style="padding: 12px 16px; font-size: 0.875rem; color: var(--color-neutral-700); white-space: pre-wrap;">${item.serial}</td>
                 <td style="padding: 12px 16px; font-size: 0.875rem; color: var(--color-neutral-700); text-align: center;">${item.nos}</td>
-                <td style="padding: 12px 16px; font-size: 0.875rem; color: var(--color-neutral-700); text-align: center;">${item.cutting}</td>
-                <td style="padding: 12px 16px; font-size: 0.875rem; color: var(--color-neutral-700); text-align: center;">${item.rate.toFixed(2)}</td>
-                <td style="padding: 12px 16px; font-size: 0.875rem; font-weight: 600; color: var(--color-primary-900); text-align: center;">${item.total.toFixed(2)}</td>
+                <td style="padding: 12px 16px; font-size: 0.875rem; color: var(--color-neutral-700); text-align: center;">${item.cutting % 1 === 0 ? item.cutting : item.cutting.toFixed(2)}</td>
+                <td style="padding: 12px 16px; font-size: 0.875rem; color: var(--color-neutral-700); text-align: center;">${item.rate % 1 === 0 ? item.rate : item.rate.toFixed(2)}</td>
+                <td style="padding: 12px 16px; font-size: 0.875rem; font-weight: 600; color: var(--color-primary-900); text-align: center;">${item.total % 1 === 0 ? item.total : item.total.toFixed(2)}</td>
                 <td style="padding: 12px 16px; text-align: right;">
                     <div style="display: flex; gap: 8px; justify-content: flex-end;">
                         <button class="btn-edit-item" data-index="${index}" style="background: transparent; color: #3b82f6; border: none; cursor: pointer; padding: 4px;" title="Edit"><i class="fas fa-edit"></i></button>
@@ -1567,9 +1815,9 @@ function initLoadingSheets() {
         const grandTotal = itemsList.reduce((sum, item) => sum + item.total, 0);
 
         if (headerTotalNos) headerTotalNos.value = totalNos;
-        if (headerTotalCutting) headerTotalCutting.value = totalCutting.toFixed(2);
-        if (headerTotalRate) headerTotalRate.value = totalRate.toFixed(2);
-        if (headerGrandTotal) headerGrandTotal.value = grandTotal.toFixed(2);
+        if (headerTotalCutting) headerTotalCutting.value = totalCutting % 1 === 0 ? totalCutting : totalCutting.toFixed(2);
+        if (headerTotalRate) headerTotalRate.value = totalRate % 1 === 0 ? totalRate : totalRate.toFixed(2);
+        if (headerGrandTotal) headerGrandTotal.value = grandTotal % 1 === 0 ? grandTotal : grandTotal.toFixed(2);
     }
 
     // Submit & Preview (Finalize Entry)
@@ -1623,9 +1871,9 @@ function initLoadingSheets() {
                 <td style="padding: 16px; font-size: 0.875rem; font-weight: 600; color: var(--color-neutral-800);">${sheet.dcNo}</td>
                 <td style="padding: 16px; font-size: 0.875rem; color: var(--color-neutral-600);">${sheet.date}</td>
                 <td style="padding: 16px; font-size: 0.875rem; color: var(--color-neutral-800);">${sheet.totalNos}</td>
-                <td style="padding: 16px; font-size: 0.875rem; color: var(--color-neutral-800);">${sheet.totalCutting.toFixed(2)}</td>
-                <td style="padding: 16px; font-size: 0.875rem; color: var(--color-neutral-800);">${sheet.totalRate.toFixed(2)}</td>
-                <td style="padding: 16px; font-size: 0.875rem; font-weight: 700; color: var(--color-primary-900);">${sheet.grandTotal.toFixed(2)}</td>
+                <td style="padding: 16px; font-size: 0.875rem; color: var(--color-neutral-800);">${sheet.totalCutting % 1 === 0 ? sheet.totalCutting : sheet.totalCutting.toFixed(2)}</td>
+                <td style="padding: 16px; font-size: 0.875rem; color: var(--color-neutral-800);">${sheet.totalRate % 1 === 0 ? sheet.totalRate : sheet.totalRate.toFixed(2)}</td>
+                <td style="padding: 16px; font-size: 0.875rem; font-weight: 700; color: var(--color-primary-900);">${sheet.grandTotal % 1 === 0 ? sheet.grandTotal : sheet.grandTotal.toFixed(2)}</td>
                 <td style="padding: 16px; text-align: right;">
                     <div style="display: flex; justify-content: flex-end; gap: 8px;">
                         <button class="btn-icon btn-print-sheet" data-index="${index}" style="background: var(--color-primary-500); color: white; border: none; width: 32px; height: 32px; border-radius: 4px; cursor: pointer;" title="Print"><i class="fas fa-print"></i></button>
@@ -1727,7 +1975,7 @@ function initLoadingSheets() {
                     <body>
                         <div class="container">
                             <div class="header">
-                                <h1 class="company-name">Sri Vinayaga Engineering</h1>
+                                <h1 class="company-name">${JSON.parse(localStorage.getItem('invoice_flow_company_profile') || '{}').name || 'Precision Logistics'}</h1>
                             </div>
                             
                             <div class="doc-info">
@@ -1756,19 +2004,19 @@ function initLoadingSheets() {
                                             <td class="text-center">${item.name}</td>
                                             <td style="white-space: pre-wrap;">${item.serial}</td>
                                             <td class="text-center">${item.nos}</td>
-                                            <td class="text-center">${item.cutting.toFixed(2)}</td>
-                                            <td class="text-center">${(item.nos * item.cutting).toFixed(2)}</td>
-                                            <td class="text-right">${item.rate.toFixed(2)}</td>
-                                            <td class="text-right font-bold">${item.total.toFixed(2)}</td>
+                                            <td class="text-center">${item.cutting % 1 === 0 ? item.cutting : item.cutting.toFixed(2)}</td>
+                                            <td class="text-center">${(item.nos * item.cutting) % 1 === 0 ? (item.nos * item.cutting) : (item.nos * item.cutting).toFixed(2)}</td>
+                                            <td class="text-right">${item.rate % 1 === 0 ? item.rate : item.rate.toFixed(2)}</td>
+                                            <td class="text-right font-bold">${item.total % 1 === 0 ? item.total : item.total.toFixed(2)}</td>
                                         </tr>
                                     `).join('')}
                                     <tr style="background: #f8fafc;">
                                         <td colspan="4" class="text-right font-bold" style="border-right: none;">GRAND TOTAL</td>
                                         <td class="text-center font-bold" style="border-left: none; border-right: none;">${sheet.totalNos}</td>
                                         <td style="border-left: none; border-right: none;"></td>
-                                        <td class="text-center font-bold" style="border-left: none; border-right: none;">${sheet.totalCutting.toFixed(2)}</td>
+                                        <td class="text-center font-bold" style="border-left: none; border-right: none;">${sheet.totalCutting % 1 === 0 ? sheet.totalCutting : sheet.totalCutting.toFixed(2)}</td>
                                         <td style="border-left: none; border-right: none;"></td>
-                                        <td class="text-right font-bold" style="border-left: none;">${sheet.grandTotal.toFixed(2)}</td>
+                                        <td class="text-right font-bold" style="border-left: none;">${sheet.grandTotal % 1 === 0 ? sheet.grandTotal : sheet.grandTotal.toFixed(2)}</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -1785,22 +2033,22 @@ function initLoadingSheets() {
                                 <tbody>
                                     ${Object.values(summaryGroups).map(group => `
                                         <tr>
-                                            <td class="text-center font-bold">${group.rate.toFixed(2)}</td>
+                                            <td class="text-center font-bold">${group.rate % 1 === 0 ? group.rate : group.rate.toFixed(2)}</td>
                                             <td class="text-center font-bold">${group.code}</td>
-                                            <td class="text-center font-bold">${group.totalCutting.toFixed(2)}</td>
-                                            <td class="text-right font-bold">₹ ${group.totalAmount.toFixed(2)}</td>
+                                            <td class="text-center font-bold">${group.totalCutting % 1 === 0 ? group.totalCutting : group.totalCutting.toFixed(2)}</td>
+                                            <td class="text-right font-bold">₹ ${group.totalAmount % 1 === 0 ? group.totalAmount : group.totalAmount.toFixed(2)}</td>
                                         </tr>
                                     `).join('')}
                                     <tr style="background: #f8fafc;">
                                         <td colspan="2" class="text-right font-bold">Grand Total</td>
-                                        <td class="text-center font-bold">${sheet.totalCutting.toFixed(2)}</td>
-                                        <td class="text-right font-bold">₹ ${sheet.grandTotal.toFixed(2)}</td>
+                                        <td class="text-center font-bold">${sheet.totalCutting % 1 === 0 ? sheet.totalCutting : sheet.totalCutting.toFixed(2)}</td>
+                                        <td class="text-right font-bold">₹ ${sheet.grandTotal % 1 === 0 ? sheet.grandTotal : sheet.grandTotal.toFixed(2)}</td>
                                     </tr>
                                 </tbody>
                             </table>
 
                             <div class="summary-box">
-                                Summary: Total Entries: ${sheet.items.length} | Total Quantity (NOS): ${sheet.totalNos} | Grand Total Amount: ₹ ${sheet.grandTotal.toFixed(2)}
+                                Summary: Total Entries: ${sheet.items.length} | Total Quantity (NOS): ${sheet.totalNos} | Grand Total Amount: ₹ ${sheet.grandTotal % 1 === 0 ? sheet.grandTotal : sheet.grandTotal.toFixed(2)}
                             </div>
 
                             <div class="computer-gen">
@@ -2512,3 +2760,334 @@ function initAuth() {
     applyPermissions(currentUser);
     initTeamUI();
 }
+
+/* ---- Purchase Orders Logic ---- */
+function initPO() {
+    const poTableBody = document.getElementById('po-table-body');
+    const poForm = document.getElementById('form-add-po');
+    const poSearch = document.getElementById('po-search');
+    const btnAddRow = document.getElementById('btn-po-add-row');
+    const btnBulkAdd = document.getElementById('btn-po-bulk-add');
+    const itemsTableBody = document.getElementById('po-items-body');
+    const bulkAddModal = document.getElementById('modal-po-bulk-add');
+    const btnConfirmBulkAdd = document.getElementById('btn-confirm-bulk-add');
+    const bulkTextArea = document.getElementById('po-bulk-codes');
+
+    if (!poTableBody || !poForm || !itemsTableBody) return;
+
+    function addPORow(data = null) {
+        const tr = document.createElement('tr');
+        tr.style.borderBottom = '1px solid var(--color-neutral-100)';
+        tr.innerHTML = `
+            <td style="padding: 12px;">
+                <input type="text" class="form-control item-code-input" value="${data?.itemCode || ''}" required placeholder="Item Code" style="width: 100%; padding: 8px; border: 1px solid var(--color-neutral-200); border-radius: 4px; font-size: 0.875rem; outline: none;">
+            </td>
+            <td style="padding: 12px;">
+                <input type="number" step="0.01" class="form-control rate-input" value="${data?.rate || ''}" required placeholder="0.00" style="width: 100%; padding: 8px; border: 1px solid var(--color-neutral-200); border-radius: 4px; font-size: 0.875rem; outline: none;">
+            </td>
+            <td style="padding: 12px;">
+                <input type="number" class="form-control qty-input" value="${data?.qty || ''}" required placeholder="0" style="width: 100%; padding: 8px; border: 1px solid var(--color-neutral-200); border-radius: 4px; font-size: 0.875rem; text-align: center; outline: none;">
+            </td>
+            <td style="padding: 12px; text-align: center;">
+                <button type="button" class="btn-remove-po-row" style="background: #fee2e2; color: #ef4444; border: none; width: 28px; height: 28px; border-radius: 4px; cursor: pointer; transition: 0.2s;" onmouseover="this.style.background='#fecaca'" onmouseout="this.style.background='#fee2e2'"><i class="fas fa-times"></i></button>
+            </td>
+        `;
+        itemsTableBody.appendChild(tr);
+        
+        tr.querySelector('.btn-remove-po-row').addEventListener('click', () => {
+            if (itemsTableBody.children.length > 1) {
+                tr.remove();
+            } else {
+                tr.querySelectorAll('input').forEach(input => input.value = '');
+            }
+        });
+    }
+
+    if (itemsTableBody.children.length === 0) {
+        addPORow();
+    }
+
+    if (btnAddRow) {
+        btnAddRow.addEventListener('click', () => addPORow());
+    }
+
+    if (btnBulkAdd && bulkAddModal) {
+        btnBulkAdd.addEventListener('click', () => {
+            bulkAddModal.style.display = 'flex';
+            if (bulkTextArea) {
+                bulkTextArea.value = '';
+                bulkTextArea.focus();
+            }
+        });
+    }
+
+    if (btnConfirmBulkAdd && bulkAddModal) {
+        btnConfirmBulkAdd.addEventListener('click', () => {
+            const codes = bulkTextArea.value.split(/[\n,]+/).map(c => c.trim()).filter(c => c);
+            if (codes.length === 0) {
+                alert('Please enter at least one item code.');
+                return;
+            }
+
+            const firstRow = itemsTableBody.children[0];
+            const firstInput = firstRow?.querySelector('.item-code-input');
+            let startIndex = 0;
+            
+            if (firstInput && !firstInput.value && itemsTableBody.children.length === 1) {
+                firstInput.value = codes[0];
+                startIndex = 1;
+            }
+
+            for (let i = startIndex; i < codes.length; i++) {
+                addPORow({ itemCode: codes[i] });
+            }
+
+            bulkAddModal.style.display = 'none';
+        });
+    }
+
+    function populateSuppliers() {
+        const supplierSelect = document.getElementById('po-vendor');
+        if (supplierSelect) {
+            const profile = JSON.parse(localStorage.getItem('invoice_flow_company_profile') || '{}');
+            const currentVal = supplierSelect.value;
+            const customers = JSON.parse(localStorage.getItem('invoice_flow_customers') || '[]');
+            supplierSelect.innerHTML = '<option value="">Select Supplier</option>' + 
+                customers.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+            
+            if (currentVal) supplierSelect.value = currentVal;
+            else if (profile.defaultCustomer) supplierSelect.value = profile.defaultCustomer;
+        }
+    }
+
+    // Call it immediately and on modal open
+    populateSuppliers();
+    window.addEventListener('click', (e) => {
+        if (e.target.id === 'modal-add-po') populateSuppliers();
+    });
+
+    renderPOList();
+
+    poForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const poNo = document.getElementById('po-no').value;
+        const poDate = document.getElementById('po-date').value;
+        const vendor = document.getElementById('po-vendor').value;
+        const items = [];
+        const rows = itemsTableBody.querySelectorAll('tr');
+        rows.forEach(row => {
+            const itemCode = row.querySelector('.item-code-input').value;
+            const rate = parseFloat(row.querySelector('.rate-input').value) || 0;
+            const qty = parseFloat(row.querySelector('.qty-input').value) || 0;
+            if (itemCode) items.push({ itemCode, rate, qty });
+        });
+
+        if (items.length === 0) {
+            alert('Please add at least one item.');
+            return;
+        }
+
+        const newPO = { id: Date.now(), no: poNo, date: poDate, vendor: vendor, items: items, status: 'Active', createdAt: new Date().toISOString() };
+        const pos = JSON.parse(localStorage.getItem('invoice_flow_pos') || '[]');
+        pos.unshift(newPO);
+        localStorage.setItem('invoice_flow_pos', JSON.stringify(pos));
+
+        poForm.reset();
+        itemsTableBody.innerHTML = '';
+        addPORow();
+        document.getElementById('modal-add-po').style.display = 'none';
+        renderPOList();
+        alert('Purchase Order created successfully!');
+    });
+
+    if (poSearch) {
+        poSearch.addEventListener('input', (e) => {
+            renderPOList(e.target.value);
+        });
+    }
+
+    function renderPOList(searchTerm = '') {
+        const pos = JSON.parse(localStorage.getItem('invoice_flow_pos') || '[]');
+        const filtered = pos.filter(po => 
+            po.no.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            (po.vendor && po.vendor.toLowerCase().includes(searchTerm.toLowerCase())) ||
+            po.items.some(it => it.itemCode.toLowerCase().includes(searchTerm.toLowerCase()))
+        );
+
+        if (filtered.length === 0) {
+            poTableBody.innerHTML = `<tr><td colspan="6" style="padding: 40px; text-align: center; color: var(--color-neutral-400);">No purchase orders found.</td></tr>`;
+            return;
+        }
+
+        poTableBody.innerHTML = filtered.map(po => {
+            const firstItem = po.items[0];
+            const itemDisplay = po.items.length > 1 ? `${firstItem.itemCode} <span style="color: var(--color-neutral-400); font-size: 0.75rem;">(+${po.items.length - 1} more)</span>` : firstItem.itemCode;
+            const totalQty = po.items.reduce((sum, it) => sum + it.qty, 0);
+            const avgRate = po.items.reduce((sum, it) => sum + it.rate, 0) / po.items.length;
+
+            return `
+                <tr style="border-bottom: 1px solid var(--color-neutral-100); transition: 0.2s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">
+                    <td style="padding: 16px;"><div style="font-weight: 700; color: var(--color-primary-900);">${po.no}</div><div style="font-size: 0.75rem; color: var(--color-neutral-500);">${po.date || ''}</div></td>
+                    <td style="padding: 16px; color: var(--color-neutral-700);">${itemDisplay}</td>
+                    <td style="padding: 16px; color: var(--color-neutral-900); font-weight: 600;">${typeof formatCurrency === 'function' ? formatCurrency(avgRate) : avgRate.toFixed(2)}</td>
+                    <td style="padding: 16px; color: var(--color-neutral-900); font-weight: 600;">${totalQty} Nos</td>
+                    <td style="padding: 16px;"><span style="background: var(--color-success-50); color: var(--color-success-700); padding: 4px 10px; border-radius: 99px; font-size: 0.75rem; font-weight: 700;">${po.status}</span></td>
+                    <td style="padding: 16px; text-align: right;">
+                        <div style="display: flex; justify-content: flex-end; gap: 8px;">
+                            <button onclick="viewPODetails(${po.id})" style="background: none; border: none; color: var(--color-primary-600); cursor: pointer; padding: 4px;" title="View Details"><i class="fas fa-eye"></i></button>
+                            <button onclick="deletePO(${po.id})" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 4px;" title="Delete PO"><i class="fas fa-trash"></i></button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    window.viewPODetails = function(id) {
+        const pos = JSON.parse(localStorage.getItem('invoice_flow_pos') || '[]');
+        const po = pos.find(p => p.id === id);
+        if (!po) return;
+        const modal = document.getElementById('modal-po-view-details');
+        if (!modal) return;
+        document.getElementById('po-view-modal-title').textContent = `Purchase Order: ${po.no}`;
+        document.getElementById('po-view-modal-subtitle').textContent = `Supplier: ${po.vendor || 'N/A'} | Date: ${po.date || 'N/A'}`;
+        const headerGrid = document.getElementById('po-view-modal-header-grid');
+        headerGrid.innerHTML = `<div><div style="font-size: 0.75rem; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 4px;">PO Number</div><div style="font-weight: 700; color: #1e293b;">${po.no}</div></div><div><div style="font-size: 0.75rem; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 4px;">Date</div><div style="font-weight: 700; color: #1e293b;">${po.date || 'N/A'}</div></div><div><div style="font-size: 0.75rem; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 4px;">Supplier</div><div style="font-weight: 700; color: #1e293b;">${po.vendor || 'N/A'}</div></div><div><div style="font-size: 0.75rem; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 4px;">Status</div><div><span style="background: var(--color-success-50); color: var(--color-success-700); padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 700;">${po.status}</span></div></div>`;
+        const itemsBody = document.getElementById('po-view-modal-items-body');
+        itemsBody.innerHTML = po.items.map((item, idx) => `<tr style="border-bottom: 1px solid #f1f5f9;"><td style="padding: 12px 16px; font-size: 0.875rem; color: #64748b;">${idx + 1}</td><td style="padding: 12px 16px; font-size: 0.875rem; font-weight: 600; color: #1e293b;">${item.itemCode}</td><td style="padding: 12px 16px; font-size: 0.875rem; text-align: center; color: #1e293b;">${item.qty}</td><td style="padding: 12px 16px; font-size: 0.875rem; text-align: center; color: #1e293b;">${formatCurrency(item.rate)}</td><td style="padding: 12px 16px; font-size: 0.875rem; text-align: right; font-weight: 700; color: #1e293b;">${formatCurrency(item.qty * item.rate)}</td></tr>`).join('');
+        modal.style.display = 'flex';
+    };
+
+    window.deletePO = function(id) {
+        if (!confirm('Are you sure you want to delete this Purchase Order?')) return;
+        let pos = JSON.parse(localStorage.getItem('invoice_flow_pos') || '[]');
+        pos = pos.filter(po => po.id !== id);
+        localStorage.setItem('invoice_flow_pos', JSON.stringify(pos));
+        renderPOList();
+        if (typeof showNotification === 'function') showNotification('PO deleted successfully', 'info');
+    };
+}
+/* ========================================
+   COMPANY PROFILE MANAGEMENT
+   ======================================== */
+const STORAGE_KEY_PROFILE = 'invoice_flow_company_profile';
+
+function initCompanyProfile() {
+    const form = document.getElementById('form-company-profile');
+    const saveBtn = document.getElementById('btn-save-profile');
+    const logoInput = document.getElementById('profile-logo-input');
+    const logoPreview = document.getElementById('profile-logo-preview');
+    const logoPlaceholder = document.getElementById('profile-logo-placeholder');
+
+    // Load Profile
+    const profile = JSON.parse(localStorage.getItem(STORAGE_KEY_PROFILE) || '{}');
+    if (profile.name) document.getElementById('profile-company-name').value = profile.name;
+    if (profile.gst) document.getElementById('profile-gst-no').value = profile.gst;
+    if (profile.vendorCode) document.getElementById('profile-vendor-code').value = profile.vendorCode;
+    if (profile.address) document.getElementById('profile-address').value = profile.address;
+    if (profile.email) document.getElementById('profile-email').value = profile.email;
+    if (profile.phone) document.getElementById('profile-phone').value = profile.phone;
+    if (profile.defaultTax) document.getElementById('settings-default-tax').value = profile.defaultTax;
+    if (profile.rdcLimit) document.getElementById('settings-rdc-limit').value = profile.rdcLimit;
+    if (profile.currency) document.getElementById('settings-currency').value = profile.currency;
+    
+    const defaultCustSelect = document.getElementById('profile-default-customer');
+    if (defaultCustSelect) {
+        const customers = JSON.parse(localStorage.getItem('invoice_flow_customers') || '[]');
+        defaultCustSelect.innerHTML = '<option value="">No Default Supplier</option>' + 
+            customers.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+        if (profile.defaultCustomer) defaultCustSelect.value = profile.defaultCustomer;
+    }
+    if (profile.logo) {
+        logoPreview.src = profile.logo;
+        logoPreview.style.display = 'block';
+        logoPlaceholder.style.display = 'none';
+    }
+
+    function updateAppLogos(logoUrl) {
+        const sidebarImg = document.getElementById('sidebar-logo-img');
+        const sidebarFallback = document.getElementById('sidebar-logo-fallback');
+        const printImg = document.getElementById('print-logo-img');
+        const printFallback = document.getElementById('print-logo-placeholder');
+
+        if (logoUrl) {
+            if (sidebarImg) { sidebarImg.src = logoUrl; sidebarImg.style.display = 'block'; }
+            if (sidebarFallback) sidebarFallback.style.display = 'none';
+            if (printImg) { printImg.src = logoUrl; printImg.style.display = 'block'; }
+            if (printFallback) printFallback.style.display = 'none';
+        } else {
+            if (sidebarImg) sidebarImg.style.display = 'none';
+            if (sidebarFallback) sidebarFallback.style.display = 'block';
+            if (printImg) printImg.style.display = 'none';
+            if (printFallback) printFallback.style.display = 'block';
+        }
+    }
+    
+    updateAppLogos(profile.logo);
+
+    // Save Profile
+    if (saveBtn) {
+        saveBtn.addEventListener('click', () => {
+            const updatedProfile = {
+                name: document.getElementById('profile-company-name').value,
+                gst: document.getElementById('profile-gst-no').value,
+                vendorCode: document.getElementById('profile-vendor-code').value,
+                address: document.getElementById('profile-address').value,
+                email: document.getElementById('profile-email').value,
+                phone: document.getElementById('profile-phone').value,
+                defaultCustomer: document.getElementById('profile-default-customer').value,
+                defaultTax: document.getElementById('settings-default-tax').value,
+                rdcLimit: document.getElementById('settings-rdc-limit').value,
+                currency: document.getElementById('settings-currency').value,
+                logo: logoPreview.src || ''
+            };
+            localStorage.setItem(STORAGE_KEY_PROFILE, JSON.stringify(updatedProfile));
+            updateAppLogos(updatedProfile.logo);
+            updateAllPrintHeaders();
+            alert('Company profile updated successfully!');
+        });
+    }
+
+    // Logo Upload
+    if (logoInput) {
+        logoInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    logoPreview.src = event.target.result;
+                    logoPreview.style.display = 'block';
+                    logoPlaceholder.style.display = 'none';
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+    }
+}
+
+function updateAllPrintHeaders() {
+    const profile = JSON.parse(localStorage.getItem(STORAGE_KEY_PROFILE) || '{}');
+    if (!profile.name) return;
+
+    // Update Company Name in all templates
+    document.querySelectorAll('.print-company-name').forEach(el => el.textContent = profile.name);
+    
+    // Update Address
+    document.querySelectorAll('.print-company-address').forEach(el => el.textContent = profile.address);
+    
+    // Update Contact
+    const contactText = `PHONE: ${profile.phone || ''} | EMAIL: ${profile.email || ''}`;
+    document.querySelectorAll('.print-company-contact').forEach(el => el.textContent = contactText);
+    
+    // Update Tax Info
+    document.querySelectorAll('.print-company-gst').forEach(el => el.textContent = profile.gst || '');
+    // PAN extraction (simple)
+    const pan = profile.gst ? profile.gst.substring(2, 12) : '';
+    document.querySelectorAll('.print-company-pan').forEach(el => el.textContent = pan);
+}
+
+// Ensure headers are updated when app loads
+document.addEventListener('DOMContentLoaded', () => {
+    initCompanyProfile();
+    updateAllPrintHeaders();
+});

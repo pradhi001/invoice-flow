@@ -19,12 +19,38 @@ function initRDC() {
         dateInput.valueAsDate = new Date();
     }
 
+    // Set default auto-delete limit
+    const profile = JSON.parse(localStorage.getItem('invoice_flow_company_profile') || '{}');
+    const autoDeleteInput = document.getElementById('rdc-auto-delete-limit');
+    if (autoDeleteInput && profile.rdcLimit) {
+        autoDeleteInput.value = profile.rdcLimit;
+    }
+
+    function populateSuppliers() {
+        const supplierSelect = document.getElementById('rdc-customer');
+        if (supplierSelect) {
+            const suppliers = JSON.parse(localStorage.getItem('invoice_flow_customers') || '[]');
+            const profile = JSON.parse(localStorage.getItem('invoice_flow_company_profile') || '{}');
+            const currentVal = supplierSelect.value;
+            supplierSelect.innerHTML = '<option value="">Select Supplier</option>' + 
+                suppliers.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+            
+            if (currentVal) {
+                supplierSelect.value = currentVal;
+            } else if (profile.defaultCustomer) {
+                supplierSelect.value = profile.defaultCustomer;
+            }
+        }
+    }
+    populateSuppliers();
+
     // Navigation from List to Create
     const btnCreate = document.getElementById('btn-create-new-rdc');
     if (btnCreate) {
         btnCreate.addEventListener('click', () => {
             currentEditIndex = -1;
             form.reset();
+            populateSuppliers();
             const h2 = document.getElementById('page-add-rdc')?.querySelector('h2');
             if (h2) h2.textContent = 'Create RDC';
             tbody.innerHTML = `<tr style="border-bottom: 1px solid var(--color-neutral-100);">${createRowHtml()}</tr>`;
