@@ -3200,6 +3200,17 @@ function initPO() {
 
     if (!poTableBody || !poForm || !itemsTableBody) return;
 
+    const btnOpenAdd = document.getElementById('btn-open-add-po');
+    if (btnOpenAdd) {
+        btnOpenAdd.onclick = () => {
+            document.getElementById('po-id').value = '';
+            poForm.reset();
+            itemsTableBody.innerHTML = '';
+            addPORow();
+            document.getElementById('modal-add-po').style.display = 'flex';
+        };
+    }
+
     function addPORow(data = null) {
         const tr = document.createElement('tr');
         tr.style.borderBottom = '1px solid var(--color-neutral-100)';
