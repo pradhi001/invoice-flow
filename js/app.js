@@ -625,12 +625,28 @@ function initNavigation() {
         });
     }
 
-    // Handle "Add Vendor" button click from Vendors page
+    // Handle "Add Vendor/Supplier" button clicks
     const btnAddVendorPage = document.getElementById('btn-add-vendor-page');
     if (btnAddVendorPage) {
         btnAddVendorPage.addEventListener('click', () => {
             const addVendorNav = document.getElementById('nav-add-vendor');
             if (addVendorNav) addVendorNav.click();
+        });
+    }
+
+    const btnAddSupplierPage = document.getElementById('btn-add-supplier-page');
+    if (btnAddSupplierPage) {
+        btnAddSupplierPage.addEventListener('click', () => {
+            const addSupplierNav = document.getElementById('nav-add-supplier');
+            if (addSupplierNav) addSupplierNav.click();
+        });
+    }
+
+    const btnAddCustomer = document.getElementById('btn-add-customer');
+    if (btnAddCustomer) {
+        btnAddCustomer.addEventListener('click', () => {
+            const addSupplierNav = document.getElementById('nav-add-supplier');
+            if (addSupplierNav) addSupplierNav.click();
         });
     }
 
