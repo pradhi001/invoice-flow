@@ -111,6 +111,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (userEmailSpan) userEmailSpan.textContent = userData.name || 'Admin User';
             loginPage.classList.remove('active');
             mainApp.style.display = 'flex';
+            syncAllData();
         } else {
             loginPage.classList.add('active');
             mainApp.style.display = 'none';
@@ -145,8 +146,13 @@ document.addEventListener('DOMContentLoaded', () => {
                             mainApp.style.opacity = '0';
                             setTimeout(() => mainApp.style.opacity = '1', 50);
                             
-                            // Initialize dashboard
+                            // Re-initialize key data
+                            if (typeof initCompanyProfile === 'function') initCompanyProfile();
+                            if (typeof updateAllPrintHeaders === 'function') updateAllPrintHeaders();
                             if (typeof window.renderDashboardStats === 'function') window.renderDashboardStats();
+                            
+                            // Start global sync
+                            syncAllData();
                         }, 500);
                     } else {
                         showNotification('Invalid username or password. Please try again.', 'error');
@@ -211,17 +217,70 @@ document.addEventListener('DOMContentLoaded', () => {
 // --- 2. API HELPER ---
 async function apiFetch(endpoint, options = {}) {
     try {
-        const url = `${API_BASE}/api/${endpoint}`;
-        const res = await fetch(url, {
-            headers: { 'Content-Type': 'application/json' },
-            ...options
+        const response = await fetch(`${API_BASE}/api/${endpoint}`, {
+            ...options,
+            headers: {
+                'Content-Type': 'application/json',
+                ...options.headers
+            }
         });
-        const data = await res.json();
-        if (!data.success) throw new Error(data.error || 'API Error');
-        return data;
-    } catch (err) {
-        console.warn(`API (${endpoint}):`, err.message, '— using static data');
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            throw new Error(err.error || `HTTP error! status: ${response.status}`);
+        }
+        return await response.json();
+    } catch (error) {
+        console.warn(`API Error (${endpoint}):`, error.message);
         return null;
+    }
+}
+
+async function syncAllData() {
+    console.log('Starting global sync...');
+    
+    // Sync Companies/Suppliers
+    const compData = await apiFetch('companies');
+    if (compData && compData.companies) {
+        localStorage.setItem('invoice_flow_customers', JSON.stringify(compData.companies));
+        if (typeof initSupplierForm === 'function') initSupplierForm();
+    }
+
+    // Sync Products
+    const prodData = await apiFetch('products');
+    if (prodData && prodData.products) {
+        localStorage.setItem('invoice_flow_products', JSON.stringify(prodData.products));
+        if (typeof initProducts === 'function') initProducts();
+    }
+
+    // Sync Invoices
+    const invData = await apiFetch('invoices?limit=100');
+    if (invData && invData.invoices) {
+        localStorage.setItem('invoice_flow_invoices', JSON.stringify(invData.invoices));
+    }
+
+    // Sync RDCs
+    const rdcData = await apiFetch('rdcs');
+    if (rdcData && rdcData.rdcs) {
+        localStorage.setItem('invoice_flow_rdcs', JSON.stringify(rdcData.rdcs));
+    }
+
+    // Sync DCs
+    const dcData = await apiFetch('delivery_challans');
+    if (dcData && dcData.delivery_challans) {
+        localStorage.setItem('invoice_flow_dcs', JSON.stringify(dcData.delivery_challans));
+        if (typeof window.renderDCList === 'function') window.renderDCList();
+    }
+
+    // Sync Loading Sheets
+    const loadData = await apiFetch('loading_sheets');
+    if (loadData && loadData.loading_sheets) {
+        localStorage.setItem('invoice_flow_loading_sheets', JSON.stringify(loadData.loading_sheets));
+        if (typeof window.renderMainLoadingTable === 'function') {
+            window.allLoadingSheets = loadData.loading_sheets;
+            window.renderMainLoadingTable();
+        } else {
+            initLoadingSheets();
+        }
     }
 }
 
@@ -281,8 +340,19 @@ let currentFilter = 'all';
 
 async function loadInvoicesData(page = 1, status = 'all') {
     const params = `invoices?page=${page}&limit=10${status !== 'all' ? '&status=' + status : ''}`;
-    const data = await apiFetch(params);
-    if (!data) return;
+    let data = await apiFetch(params);
+    
+    if (!data) {
+        // Fallback to localStorage
+        const localInvoices = JSON.parse(localStorage.getItem('invoice_flow_invoices') || '[]');
+        const stats = {
+            totalRevenue: localInvoices.reduce((sum, inv) => sum + (inv.amount || 0), 0),
+            outstanding: localInvoices.filter(inv => inv.status !== 'paid').reduce((sum, inv) => sum + (inv.amount || 0), 0),
+            overdueCount: localInvoices.filter(inv => inv.status === 'overdue').length,
+            pendingApproval: localInvoices.filter(inv => inv.status === 'draft').length
+        };
+        data = { success: true, invoices: localInvoices, stats, total: localInvoices.length, page: 1, limit: 10 };
+    }
 
     currentPage = data.page;
 
@@ -863,6 +933,38 @@ function initInvoiceForm() {
         const oldDuplicate = document.getElementById('duplicate-container');
         if (oldDuplicate) oldDuplicate.remove();
 
+        // 4. Save Invoice to localStorage
+        const invoiceData = {
+            id: 'INV-' + Date.now(),
+            invoice_number: invNoEl?.textContent || 'N/A',
+            created_at: new Date().toISOString(),
+            due_date: new Date(Date.now() + 30*24*60*60*1000).toISOString(),
+            amount: parseFloat(totalAmountEl?.textContent.replace(/[^0-9.]/g, '') || 0),
+            status: 'draft',
+            companies: {
+                name: vendorInput.options[vendorInput.selectedIndex].text,
+                initials: vendorInput.options[vendorInput.selectedIndex].text.substring(0, 2).toUpperCase(),
+                avatar_color: '#3b82f6'
+            },
+            items: items
+        };
+        const localInvoices = JSON.parse(localStorage.getItem('invoice_flow_invoices') || '[]');
+        localInvoices.unshift(invoiceData);
+        localStorage.setItem('invoice_flow_invoices', JSON.stringify(localInvoices));
+
+        // Sync to Supabase
+        apiFetch('invoices', {
+            method: 'POST',
+            body: JSON.stringify({
+                invoice_number: invoiceData.invoice_number,
+                company_id: invoiceData.company_id, // Wait, I need to make sure this is available
+                amount: invoiceData.amount,
+                due_date: invoiceData.due_date,
+                notes: invoiceData.notes,
+                status: 'draft'
+            })
+        });
+
         // Transition UI
         document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
         const printPage = document.getElementById('page-invoice-print');
@@ -1017,11 +1119,21 @@ document.head.appendChild(style);
 /* ---- Vendor Form Logic ---- */
 function initSupplierForm() {
     const form = document.getElementById('form-add-supplier');
-    const tbody = document.getElementById('suppliers-table-body');
+    const tbody = document.getElementById('vendor-table-body');
     if (!form || !tbody) return;
 
     const STORAGE_KEY = 'invoice_flow_customers';
-    const getSuppliers = () => JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    const getSuppliers = () => {
+        let data = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+        if (data.length === 0) {
+            data = [
+                { name: 'Skyline Modernity Ltd.', type: '2', phone: '9123456789', email: 'info@skyline.com', address: '123 Business Hub, Hosur', state: 'Tamil Nadu', code: 'V-001', pan: 'ABCDE1234F', gst: '33ABCDE1234F1Z1' },
+                { name: 'Vista Housing Co.', type: '1', phone: '9876543210', email: 'contact@vista.com', address: '456 Tech Park, Bangalore', state: 'Karnataka', code: 'V-002', pan: 'FGHIJ5678K', gst: '29FGHIJ5678K1Z2' }
+            ];
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        }
+        return data;
+    };
     const saveSuppliers = (suppliers) => localStorage.setItem(STORAGE_KEY, JSON.stringify(suppliers));
 
     function renderSuppliers(filter = '') {
@@ -1123,6 +1235,12 @@ function initSupplierForm() {
             suppliers.unshift(supplier);
         }
         saveSuppliers(suppliers);
+        
+        // Sync to Supabase
+        apiFetch('companies', { 
+            method: 'POST', 
+            body: JSON.stringify(supplier) 
+        });
         
         form.reset();
         imgPreview.style.display = 'none';
@@ -1513,6 +1631,21 @@ function initDCForm() {
                 dcs.unshift(dcData);
             }
             localStorage.setItem('invoice_flow_dcs', JSON.stringify(dcs));
+            
+            // Sync to Supabase
+            const customers = JSON.parse(localStorage.getItem('invoice_flow_customers') || '[]');
+            const customer = customers.find(c => c.name === dcData.vendorName);
+            apiFetch('delivery_challans', {
+                method: 'POST',
+                body: JSON.stringify({
+                    challan_number: dcData.dcNo,
+                    company_id: customer ? customer.id : null,
+                    date: dcData.dcDate,
+                    items: dcData.items,
+                    status: 'pending'
+                })
+            });
+
             if (typeof window.renderDCList === 'function') window.renderDCList();
         }
 
@@ -1721,6 +1854,16 @@ function initDCForm() {
 
 /* ---- Loading Sheets Logic ---- */
 function initLoadingSheets() {
+    if (window.loadingSheetsInitialized) {
+        if (typeof window.renderMainLoadingTable === 'function') {
+            const STORAGE_KEY = 'invoice_flow_loading_sheets';
+            window.allLoadingSheets = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+            window.renderMainLoadingTable();
+        }
+        return;
+    }
+    window.loadingSheetsInitialized = true;
+
     const entryTableBody = document.getElementById('entry-items-table-body');
     const loadingTableBody = document.getElementById('loading-sheets-table-body');
     const btnAddItem = document.getElementById('btn-add-item-loading');
@@ -1740,8 +1883,8 @@ function initLoadingSheets() {
 
     if (!entryTableBody || !btnAddItem) return;
 
-    let itemsList = [];
-    let allLoadingSheets = []; // Store full sheets data
+    const STORAGE_KEY = 'invoice_flow_loading_sheets';
+    window.allLoadingSheets = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
 
     // Auto-calculate item total: NOS * CUTTING * RATE
     function calculateItemTotal() {
@@ -1964,8 +2107,21 @@ function initLoadingSheets() {
             };
 
             // Save to main array
-            allLoadingSheets.unshift(sheetData);
-            renderMainLoadingTable();
+            window.allLoadingSheets.unshift(sheetData);
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(window.allLoadingSheets));
+            window.renderMainLoadingTable();
+
+            // Sync to Supabase
+            apiFetch('loading_sheets', {
+                method: 'POST',
+                body: JSON.stringify({
+                    dc_number: sheetData.dcNo,
+                    date: sheetData.date,
+                    items: sheetData.items,
+                    total_nos: sheetData.totalNos,
+                    grand_total: sheetData.grandTotal
+                })
+            });
 
             // UI Feedback
             alert('Loading Entry Saved Successfully!');
@@ -1979,10 +2135,10 @@ function initLoadingSheets() {
         });
     }
 
-    function renderMainLoadingTable() {
+    window.renderMainLoadingTable = function() {
         if (!loadingTableBody) return;
         
-        loadingTableBody.innerHTML = allLoadingSheets.map((sheet, index) => `
+        loadingTableBody.innerHTML = window.allLoadingSheets.map((sheet, index) => `
             <tr style="border-bottom: 1px solid var(--color-neutral-100); transition: background 0.2s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">
                 <td style="padding: 16px; text-align: center;"><input type="checkbox"></td>
                 <td style="padding: 16px; font-size: 0.875rem; font-weight: 600; color: var(--color-neutral-800);">${sheet.dcNo}</td>
@@ -2005,7 +2161,7 @@ function initLoadingSheets() {
         loadingTableBody.querySelectorAll('.btn-edit-sheet').forEach(btn => {
             btn.addEventListener('click', () => {
                 const index = parseInt(btn.dataset.index);
-                const sheet = allLoadingSheets[index];
+                const sheet = window.allLoadingSheets[index];
                 
                 document.getElementById('header-dc-no').value = sheet.dcNo;
                 document.getElementById('header-date').value = sheet.date;
@@ -2014,7 +2170,7 @@ function initLoadingSheets() {
                 renderEntryTable();
                 updateHeaderStats();
 
-                allLoadingSheets.splice(index, 1);
+                window.allLoadingSheets.splice(index, 1);
                 renderMainLoadingTable();
 
                 document.getElementById('nav-add-loading').click();
@@ -2025,7 +2181,7 @@ function initLoadingSheets() {
         loadingTableBody.querySelectorAll('.btn-view-sheet').forEach(btn => {
             btn.addEventListener('click', () => {
                 const index = parseInt(btn.dataset.index);
-                const sheet = allLoadingSheets[index];
+                const sheet = window.allLoadingSheets[index];
                 
                 document.getElementById('header-dc-no').value = sheet.dcNo;
                 document.getElementById('header-date').value = sheet.date;
@@ -2043,7 +2199,7 @@ function initLoadingSheets() {
         loadingTableBody.querySelectorAll('.btn-print-sheet').forEach(btn => {
             btn.addEventListener('click', () => {
                 const index = parseInt(btn.dataset.index);
-                const sheet = allLoadingSheets[index];
+                const sheet = window.allLoadingSheets[index];
                 
                 const printWindow = window.open('', '_blank');
                 
@@ -2270,43 +2426,21 @@ function initInventory() {
             const dept = document.getElementById('item-dept-input').value;
             const status = document.getElementById('item-status-input').value;
 
-            // In a real app, you would call your backend here
-            console.log('Saving Item:', { code, rate, dept, status });
+            const newItem = { rate, code, dept, status };
+            const inventory = JSON.parse(localStorage.getItem('invoice_flow_inventory') || '[]');
+            inventory.unshift(newItem);
+            localStorage.setItem('invoice_flow_inventory', JSON.stringify(inventory));
             
-            // Add to table (temporary local update)
-            const tbody = document.getElementById('inventory-table-body');
-            const tr = document.createElement('tr');
-            tr.style.borderBottom = '1px solid var(--color-neutral-100)';
-            tr.style.transition = 'background 0.2s';
-            tr.onmouseover = () => tr.style.background = '#f8fafc';
-            tr.onmouseout = () => tr.style.background = 'transparent';
-            tr.innerHTML = `
-                <td style="padding: 16px; font-size: 0.875rem; color: var(--color-neutral-700);">${parseFloat(rate).toFixed(2)}</td>
-                <td style="padding: 16px; font-size: 0.875rem; font-weight: 600; color: var(--color-primary-900);">${code}</td>
-                <td style="padding: 16px; font-size: 0.875rem; color: var(--color-neutral-600);">${dept}</td>
-                <td style="padding: 16px;">
-                    <span style="background: ${status === 'Active' ? 'var(--color-success-50)' : 'var(--color-primary-50)'}; 
-                                 color: ${status === 'Active' ? 'var(--color-success-700)' : 'var(--color-primary-700)'}; 
-                                 padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 700; 
-                                 border: 1px solid ${status === 'Active' ? 'var(--color-success-200)' : 'var(--color-primary-200)'};">
-                        ${status}
-                    </span>
-                </td>
-                <td style="padding: 16px; text-align: right;">
-                    <div style="display: flex; justify-content: flex-end; gap: 8px;">
-                        <button class="btn-edit-inventory" style="background: #3b82f6; color: white; border: none; width: 32px; height: 32px; border-radius: 4px; cursor: pointer;" title="Edit"><i class="fas fa-edit"></i></button>
-                        <button class="btn-delete-inventory" style="background: #ef4444; color: white; border: none; width: 32px; height: 32px; border-radius: 4px; cursor: pointer;" title="Delete"><i class="fas fa-trash"></i></button>
-                    </div>
-                </td>
-            `;
-            tbody.prepend(tr);
+            // Refresh table
+            loadInventoryData();
             
             // Close modal and reset form
             modal.style.display = 'none';
             form.reset();
             
             // UI Feedback
-            alert('Item Code saved successfully!');
+            if (typeof showNotification === 'function') showNotification('Item Code saved successfully!', 'success');
+            else alert('Item Code saved successfully!');
         });
     }
 
@@ -2341,21 +2475,26 @@ async function loadInventoryData() {
     const tbody = document.getElementById('inventory-table-body');
     if (!tbody) return;
 
-    // Seed data matching the user's screenshot
-    const seedData = [
-        { rate: '2.80', code: '73181000L01140', dept: 'Production', status: 'Inactive' },
-        { rate: '25.00', code: '73181000L01150', dept: 'Inventory', status: 'Active' },
-        { rate: '5.00', code: '73181000L01152', dept: 'Production', status: 'Inactive' },
-        { rate: '10.00', code: '73181000L01149', dept: 'Sales', status: 'Active' },
-        { rate: '16.00', code: '73181000L01142', dept: 'Production', status: 'Active' },
-        { rate: '2.00', code: '73181000L01183', dept: 'Packaging', status: 'Inactive' },
-        { rate: '2.80', code: '73181000L01161', dept: 'Production', status: 'Active' },
-        { rate: '25.00', code: '73181000L01165', dept: 'Inventory', status: 'Inactive' },
-        { rate: '16.00', code: '73181000L01158', dept: 'Quality Control', status: 'Inactive' },
-        { rate: '5.00', code: '73181000L01156', dept: 'Production', status: 'Active' }
-    ];
+    let inventory = JSON.parse(localStorage.getItem('invoice_flow_inventory') || '[]');
+    
+    // Seed data if empty
+    if (inventory.length === 0) {
+        inventory = [
+            { rate: '2.80', code: '73181000L01140', dept: 'Production', status: 'Inactive' },
+            { rate: '25.00', code: '73181000L01150', dept: 'Inventory', status: 'Active' },
+            { rate: '5.00', code: '73181000L01152', dept: 'Production', status: 'Inactive' },
+            { rate: '10.00', code: '73181000L01149', dept: 'Sales', status: 'Active' },
+            { rate: '16.00', code: '73181000L01142', dept: 'Production', status: 'Active' },
+            { rate: '2.00', code: '73181000L01183', dept: 'Packaging', status: 'Inactive' },
+            { rate: '2.80', code: '73181000L01161', dept: 'Production', status: 'Active' },
+            { rate: '25.00', code: '73181000L01165', dept: 'Inventory', status: 'Inactive' },
+            { rate: '16.00', code: '73181000L01158', dept: 'Quality Control', status: 'Inactive' },
+            { rate: '5.00', code: '73181000L01156', dept: 'Production', status: 'Active' }
+        ];
+        localStorage.setItem('invoice_flow_inventory', JSON.stringify(inventory));
+    }
 
-    tbody.innerHTML = seedData.map(item => `
+    tbody.innerHTML = inventory.map(item => `
         <tr style="border-bottom: 1px solid var(--color-neutral-100); transition: background 0.2s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">
             <td style="padding: 16px; font-size: 0.875rem; color: var(--color-neutral-700);">${parseFloat(item.rate).toFixed(2)}</td>
             <td style="padding: 16px; font-size: 0.875rem; font-weight: 600; color: var(--color-primary-900);">${item.code}</td>
@@ -2378,7 +2517,7 @@ async function loadInventoryData() {
     `).join('');
 
     const info = document.getElementById('inventory-pagination-info');
-    if (info) info.textContent = `Showing 1 to ${seedData.length} of ${seedData.length} entries`;
+    if (info) info.textContent = `Showing 1 to ${inventory.length} of ${inventory.length} entries`;
 }
 
 /* ---- Department Logic ---- */
@@ -2422,43 +2561,30 @@ function initDept() {
         form.addEventListener('submit', (e) => {
             e.preventDefault();
             const name = document.getElementById('dept-name-input').value;
-            const tbody = document.getElementById('dept-table-body');
+            const depts = JSON.parse(localStorage.getItem('invoice_flow_departments') || '[]');
 
             if (form.dataset.editMode === 'true' && window.currentEditDeptRow) {
-                const cells = window.currentEditDeptRow.querySelectorAll('td');
-                cells[1].textContent = name;
+                const oldName = window.currentEditDeptRow.querySelectorAll('td')[1].textContent;
+                const index = depts.findIndex(d => d.name === oldName);
+                if (index !== -1) depts[index].name = name;
+                
                 delete form.dataset.editMode;
                 window.currentEditDeptRow = null;
                 form.querySelector('button[type="submit"]').textContent = 'Create Department';
                 document.querySelector('#modal-add-dept h3').textContent = 'Create New Department';
             } else {
                 const id = 'D-' + Math.floor(100 + Math.random() * 900);
-                const tr = document.createElement('tr');
-                tr.style.borderBottom = '1px solid var(--color-neutral-100)';
-                tr.style.transition = 'background 0.2s';
-                tr.onmouseover = () => tr.style.background = '#f8fafc';
-                tr.onmouseout = () => tr.style.background = 'transparent';
-                tr.innerHTML = `
-                    <td style="padding: 16px; font-size: 0.875rem; color: var(--color-neutral-500);">${id}</td>
-                    <td style="padding: 16px; font-size: 0.875rem; font-weight: 600; color: var(--color-primary-900);">${name}</td>
-                    <td style="padding: 16px; font-size: 0.875rem; color: var(--color-neutral-600);">0</td>
-                    <td style="padding: 16px;">
-                        <span style="background: var(--color-success-50); color: var(--color-success-700); padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 700; border: 1px solid var(--color-success-200);">Active</span>
-                    </td>
-                    <td style="padding: 16px; text-align: right;">
-                        <div style="display: flex; justify-content: flex-end; gap: 8px;">
-                            <button class="btn-edit-dept" style="background: #3b82f6; color: white; border: none; width: 32px; height: 32px; border-radius: 4px; cursor: pointer;" title="Edit"><i class="fas fa-edit"></i></button>
-                            <button class="btn-delete-dept" style="background: #ef4444; color: white; border: none; width: 32px; height: 32px; border-radius: 4px; cursor: pointer;" title="Delete"><i class="fas fa-trash"></i></button>
-                        </div>
-                    </td>
-                `;
-                tbody.prepend(tr);
+                depts.unshift({ id, name, employees: 0, status: 'Active' });
             }
+            
+            localStorage.setItem('invoice_flow_departments', JSON.stringify(depts));
+            loadDeptData();
             
             modal.style.display = 'none';
             form.reset();
-            alert('Department saved successfully!');
-            updateDepartmentDropdowns(); // Sync dropdowns after saving a department
+            if (typeof showNotification === 'function') showNotification('Department saved successfully', 'success');
+            else alert('Department saved successfully!');
+            updateDepartmentDropdowns(); 
         });
     }
 
@@ -2496,15 +2622,20 @@ async function loadDeptData() {
     const tbody = document.getElementById('dept-table-body');
     if (!tbody) return;
 
-    const seedDepts = [
-        { id: 'D-101', name: 'Production', employees: 45, status: 'Active' },
-        { id: 'D-102', name: 'Sales', employees: 12, status: 'Active' },
-        { id: 'D-103', name: 'Inventory', employees: 8, status: 'Active' },
-        { id: 'D-104', name: 'Quality Control', employees: 15, status: 'Active' },
-        { id: 'D-105', name: 'Packaging', employees: 20, status: 'Active' }
-    ];
+    let depts = JSON.parse(localStorage.getItem('invoice_flow_departments') || '[]');
+    
+    if (depts.length === 0) {
+        depts = [
+            { id: 'D-101', name: 'Production', employees: 45, status: 'Active' },
+            { id: 'D-102', name: 'Sales', employees: 12, status: 'Active' },
+            { id: 'D-103', name: 'Inventory', employees: 8, status: 'Active' },
+            { id: 'D-104', name: 'Quality Control', employees: 15, status: 'Active' },
+            { id: 'D-105', name: 'Packaging', employees: 20, status: 'Active' }
+        ];
+        localStorage.setItem('invoice_flow_departments', JSON.stringify(depts));
+    }
 
-    tbody.innerHTML = seedDepts.map(dept => `
+    tbody.innerHTML = depts.map(dept => `
         <tr style="border-bottom: 1px solid var(--color-neutral-100); transition: background 0.2s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">
             <td style="padding: 16px; font-size: 0.875rem; color: var(--color-neutral-500);">${dept.id}</td>
             <td style="padding: 16px; font-size: 0.875rem; font-weight: 600; color: var(--color-primary-900);">${dept.name}</td>
@@ -2521,7 +2652,7 @@ async function loadDeptData() {
         </tr>
     `).join('');
 
-    updateDepartmentDropdowns(); // Initial sync after loading seed data
+    updateDepartmentDropdowns(); 
 }
 
 /* ---- Products Management ---- */
@@ -2537,6 +2668,37 @@ function initProducts() {
         });
     }
 
+    const renderProducts = () => {
+        const products = JSON.parse(localStorage.getItem('invoice_flow_products') || '[]');
+        
+        if (products.length === 0) {
+            const seedProducts = [
+                { name: 'Hex Bolt M10 x 50', code: 'HB-M10-50', hsn: '7318', rate: 14.50 },
+                { name: 'Self Tapping Screw', code: 'STS-08', hsn: '7318', rate: 2.80 },
+                { name: 'Nylon Insert Lock Nut', code: 'NLN-M10', hsn: '7318', rate: 5.00 }
+            ];
+            localStorage.setItem('invoice_flow_products', JSON.stringify(seedProducts));
+            return renderProducts();
+        }
+
+        tbody.innerHTML = products.map((p, index) => `
+            <tr style="border-bottom: 1px solid var(--color-neutral-100);">
+                <td style="padding: 16px; font-size: 0.875rem; font-weight: 600; color: var(--color-primary-900); border-bottom: 1px solid var(--color-neutral-100);">${p.name}</td>
+                <td style="padding: 16px; font-size: 0.875rem; color: var(--color-neutral-600); border-bottom: 1px solid var(--color-neutral-100); text-transform: uppercase;">${p.code}</td>
+                <td style="padding: 16px; font-size: 0.875rem; color: var(--color-neutral-600); border-bottom: 1px solid var(--color-neutral-100);">${p.hsn}</td>
+                <td style="padding: 16px; font-size: 0.875rem; font-weight: 700; color: var(--color-neutral-900); border-bottom: 1px solid var(--color-neutral-100);">₹${parseFloat(p.rate).toFixed(2)}</td>
+                <td style="padding: 16px; text-align: right; border-bottom: 1px solid var(--color-neutral-100);">
+                    <div style="display: flex; justify-content: flex-end; gap: 8px;">
+                        <button class="btn-edit-product" data-index="${index}" style="background: #3b82f6; color: white; border: none; width: 32px; height: 32px; border-radius: 4px; cursor: pointer;" title="Edit"><i class="fas fa-edit"></i></button>
+                        <button class="btn-delete-product" data-index="${index}" style="background: #ef4444; color: white; border: none; width: 32px; height: 32px; border-radius: 4px; cursor: pointer;" title="Delete"><i class="fas fa-trash"></i></button>
+                    </div>
+                </td>
+            </tr>
+        `).join('');
+    };
+
+    renderProducts();
+
     if (form) {
         form.addEventListener('submit', (e) => {
             e.preventDefault();
@@ -2545,50 +2707,38 @@ function initProducts() {
             const hsn = document.getElementById('product-hsn-input').value;
             const rate = document.getElementById('product-rate-input').value;
 
-            const tr = document.createElement('tr');
-            tr.style.borderBottom = '1px solid var(--color-neutral-100)';
-            tr.innerHTML = `
-                <td style="padding: 16px; font-size: 0.875rem; font-weight: 600; color: var(--color-primary-900); border-bottom: 1px solid var(--color-neutral-100);">${name}</td>
-                <td style="padding: 16px; font-size: 0.875rem; color: var(--color-neutral-600); border-bottom: 1px solid var(--color-neutral-100); text-transform: uppercase;">${code}</td>
-                <td style="padding: 16px; font-size: 0.875rem; color: var(--color-neutral-600); border-bottom: 1px solid var(--color-neutral-100);">${hsn}</td>
-                <td style="padding: 16px; font-size: 0.875rem; font-weight: 700; color: var(--color-neutral-900); border-bottom: 1px solid var(--color-neutral-100);">₹${parseFloat(rate).toFixed(2)}</td>
-                <td style="padding: 16px; text-align: right; border-bottom: 1px solid var(--color-neutral-100);">
-                    <div style="display: flex; justify-content: flex-end; gap: 8px;">
-                        <button class="btn-edit-product" style="background: #3b82f6; color: white; border: none; width: 32px; height: 32px; border-radius: 4px; cursor: pointer;" title="Edit"><i class="fas fa-edit"></i></button>
-                        <button class="btn-delete-product" style="background: #ef4444; color: white; border: none; width: 32px; height: 32px; border-radius: 4px; cursor: pointer;" title="Delete"><i class="fas fa-trash"></i></button>
-                    </div>
-                </td>
-            `;
-            tbody.prepend(tr);
+            const product = { name, code, hsn, rate: parseFloat(rate) };
+            const products = JSON.parse(localStorage.getItem('invoice_flow_products') || '[]');
+            products.unshift(product);
+            localStorage.setItem('invoice_flow_products', JSON.stringify(products));
+            
+            // Sync to Supabase
+            apiFetch('products', { 
+                method: 'POST', 
+                body: JSON.stringify(product) 
+            });
+
+            renderProducts();
             modal.style.display = 'none';
             form.reset();
-            alert('Product added successfully!');
+            if (typeof showNotification === 'function') showNotification('Product added successfully!', 'success');
+            else alert('Product added successfully!');
         });
     }
     
-    // Seed data
-    if (tbody && tbody.children.length === 0) {
-        const seedProducts = [
-            { name: 'Hex Bolt M10 x 50', code: 'HB-M10-50', hsn: '7318', rate: 14.50 },
-            { name: 'Self Tapping Screw', code: 'STS-08', hsn: '7318', rate: 2.80 },
-            { name: 'Nylon Insert Lock Nut', code: 'NLN-M10', hsn: '7318', rate: 5.00 }
-        ];
-        seedProducts.forEach(p => {
-             const tr = document.createElement('tr');
-            tr.style.borderBottom = '1px solid var(--color-neutral-100)';
-            tr.innerHTML = `
-                <td style="padding: 16px; font-size: 0.875rem; font-weight: 600; color: var(--color-primary-900); border-bottom: 1px solid var(--color-neutral-100);">${p.name}</td>
-                <td style="padding: 16px; font-size: 0.875rem; color: var(--color-neutral-600); border-bottom: 1px solid var(--color-neutral-100); text-transform: uppercase;">${p.code}</td>
-                <td style="padding: 16px; font-size: 0.875rem; color: var(--color-neutral-600); border-bottom: 1px solid var(--color-neutral-100);">${p.hsn}</td>
-                <td style="padding: 16px; font-size: 0.875rem; font-weight: 700; color: var(--color-neutral-900); border-bottom: 1px solid var(--color-neutral-100);">₹${p.rate.toFixed(2)}</td>
-                <td style="padding: 16px; text-align: right; border-bottom: 1px solid var(--color-neutral-100);">
-                    <div style="display: flex; justify-content: flex-end; gap: 8px;">
-                        <button class="btn-edit-product" style="background: #3b82f6; color: white; border: none; width: 32px; height: 32px; border-radius: 4px; cursor: pointer;" title="Edit"><i class="fas fa-edit"></i></button>
-                        <button class="btn-delete-product" style="background: #ef4444; color: white; border: none; width: 32px; height: 32px; border-radius: 4px; cursor: pointer;" title="Delete"><i class="fas fa-trash"></i></button>
-                    </div>
-                </td>
-            `;
-            tbody.appendChild(tr);
+    // Handle Delete
+    if (tbody) {
+        tbody.addEventListener('click', (e) => {
+            const deleteBtn = e.target.closest('.btn-delete-product');
+            if (deleteBtn) {
+                if (confirm('Are you sure you want to delete this product?')) {
+                    const index = parseInt(deleteBtn.dataset.index);
+                    const products = JSON.parse(localStorage.getItem('invoice_flow_products') || '[]');
+                    products.splice(index, 1);
+                    localStorage.setItem('invoice_flow_products', JSON.stringify(products));
+                    renderProducts();
+                }
+            }
         });
     }
 

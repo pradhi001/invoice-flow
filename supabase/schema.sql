@@ -88,6 +88,42 @@ CREATE TABLE IF NOT EXISTS purchase_orders (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- 7. RDCs Table (Returnable Delivery Challans)
+CREATE TABLE IF NOT EXISTS rdcs (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    rdc_number TEXT NOT NULL UNIQUE,
+    company_id UUID REFERENCES companies(id) ON DELETE SET NULL,
+    dept TEXT,
+    date DATE NOT NULL DEFAULT CURRENT_DATE,
+    items JSONB DEFAULT '[]'::jsonb,
+    auto_delete_limit INTEGER DEFAULT 90,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 8. Loading Sheets Table
+CREATE TABLE IF NOT EXISTS loading_sheets (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    dc_number TEXT NOT NULL,
+    date DATE NOT NULL DEFAULT CURRENT_DATE,
+    items JSONB DEFAULT '[]'::jsonb,
+    total_nos INTEGER DEFAULT 0,
+    grand_total DECIMAL(12, 2) DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 9. Products Table
+CREATE TABLE IF NOT EXISTS products (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    name TEXT NOT NULL,
+    code TEXT UNIQUE,
+    hsn TEXT,
+    rate DECIMAL(10, 2) DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- =============================================
 --  Dashboard Stats View (for fast aggregation)
 -- =============================================

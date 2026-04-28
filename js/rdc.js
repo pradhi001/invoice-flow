@@ -352,6 +352,24 @@ function initRDC() {
         else rdcs.unshift(rdcData);
         
         saveRDCs(rdcs);
+        
+        // Sync to Supabase
+        if (typeof apiFetch === 'function') {
+            const customers = JSON.parse(localStorage.getItem('invoice_flow_customers') || '[]');
+            const customer = customers.find(c => c.name === rdcData.customer);
+            apiFetch('rdcs', {
+                method: 'POST',
+                body: JSON.stringify({
+                    rdc_number: rdcData.noFull,
+                    company_id: customer ? customer.id : null,
+                    dept: rdcData.dept,
+                    date: rdcData.date,
+                    items: rdcData.items,
+                    auto_delete_limit: rdcData.autoDeleteLimit
+                })
+            });
+        }
+
         alert(currentEditIndex > -1 ? 'RDC Updated!' : 'RDC Created!');
         renderRDCs();
         
