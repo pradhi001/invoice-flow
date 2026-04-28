@@ -74,19 +74,7 @@ CREATE TABLE IF NOT EXISTS inventory (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 6. Purchase Orders Table
-CREATE TABLE IF NOT EXISTS purchase_orders (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    po_number TEXT NOT NULL UNIQUE,
-    company_id UUID REFERENCES companies(id) ON DELETE SET NULL,
-    items JSONB DEFAULT '[]'::jsonb,
-    total_amount DECIMAL(12, 2) NOT NULL DEFAULT 0,
-    status TEXT NOT NULL DEFAULT 'draft'
-        CHECK (status IN ('draft', 'sent', 'accepted', 'rejected', 'completed')),
-    date DATE NOT NULL DEFAULT CURRENT_DATE,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
-);
+
 
 -- 7. RDCs Table (Returnable Delivery Challans)
 CREATE TABLE IF NOT EXISTS rdcs (
@@ -123,7 +111,46 @@ CREATE TABLE IF NOT EXISTS products (
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
-
+ 
+ -- 10. Purchase Orders Table
+ CREATE TABLE IF NOT EXISTS purchase_orders (
+     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+     no TEXT NOT NULL,
+     date DATE,
+     vendor TEXT,
+     items JSONB DEFAULT '[]'::jsonb,
+     status TEXT DEFAULT 'Active',
+     created_at TIMESTAMPTZ DEFAULT NOW(),
+     updated_at TIMESTAMPTZ DEFAULT NOW()
+ );
+ 
+ -- 11. Team Members Table
+ CREATE TABLE IF NOT EXISTS team_members (
+     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+     username TEXT NOT NULL UNIQUE,
+     password TEXT NOT NULL,
+     role TEXT DEFAULT 'User',
+     permissions JSONB DEFAULT '[]'::jsonb,
+     created_at TIMESTAMPTZ DEFAULT NOW(),
+     updated_at TIMESTAMPTZ DEFAULT NOW()
+ );
+ 
+ -- 12. App Settings Table (Company Profile)
+ CREATE TABLE IF NOT EXISTS app_settings (
+     key TEXT PRIMARY KEY,
+     value JSONB NOT NULL,
+     updated_at TIMESTAMPTZ DEFAULT NOW()
+ );
+ 
+ -- 13. Departments Table
+ CREATE TABLE IF NOT EXISTS departments (
+     id TEXT PRIMARY KEY,
+     name TEXT NOT NULL,
+     employees INTEGER DEFAULT 0,
+     status TEXT DEFAULT 'Active',
+     created_at TIMESTAMPTZ DEFAULT NOW(),
+     updated_at TIMESTAMPTZ DEFAULT NOW()
+ );
 -- =============================================
 --  Dashboard Stats View (for fast aggregation)
 -- =============================================

@@ -2287,7 +2287,7 @@
                             <h2 style="font-size: 2.5rem; font-weight: 800; color: var(--color-primary-900); margin: 0; letter-spacing: -1px;">Purchase Orders</h2>
                             <p style="color: var(--color-neutral-500); margin-top: 8px;">Track and manage all outgoing purchase orders and fulfillment status.</p>
                         </div>
-                        <button class="btn-primary" onclick="document.getElementById('modal-add-po').style.display='flex'" style="padding: 12px 24px; border-radius: 8px; font-weight: 700; display: flex; align-items: center; gap: 8px; box-shadow: var(--shadow-lg);">
+                        <button class="btn-primary" onclick="openAddPO()" style="padding: 12px 24px; border-radius: 8px; font-weight: 700; display: flex; align-items: center; gap: 8px; box-shadow: var(--shadow-lg);">
                             <i class="fas fa-plus"></i> ADD NEW PO
                         </button>
                     </div>
@@ -2743,6 +2743,7 @@
                 <button onclick="document.getElementById('modal-add-po').style.display='none'" style="background: transparent; border: none; color: white; cursor: pointer; font-size: 1.5rem;"><i class="fas fa-times"></i></button>
             </div>
             <form id="form-add-po" style="padding: 24px; overflow-y: auto; flex: 1;">
+                <input type="hidden" id="po-id">
                 <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 24px;">
                     <div>
                         <label style="display: block; font-size: 0.875rem; font-weight: 600; color: var(--color-neutral-700); margin-bottom: 8px;">PO Number</label>
@@ -3001,6 +3002,7 @@
                                 <th style="padding: 12px; font-size: 0.75rem; font-weight: 700; color: var(--color-neutral-600); text-transform: uppercase;">PO Number</th>
                                 <th style="padding: 12px; font-size: 0.75rem; font-weight: 700; color: var(--color-neutral-600); text-transform: uppercase;">Product Name</th>
                                 <th style="padding: 12px; font-size: 0.75rem; font-weight: 700; color: var(--color-neutral-600); text-transform: uppercase;">Item Code</th>
+                                <th style="padding: 12px; font-size: 0.75rem; font-weight: 700; color: var(--color-neutral-600); text-transform: uppercase;">Rate</th>
                                 <th style="padding: 12px; text-align: right;">Action</th>
                             </tr>
                         </thead>

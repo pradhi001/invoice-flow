@@ -279,12 +279,21 @@ async function syncAllData() {
     const invData = await apiFetch('invoices?limit=100');
     if (invData && invData.invoices) {
         localStorage.setItem('invoice_flow_invoices', JSON.stringify(invData.invoices));
+        if (typeof window.renderInvoicesData === 'function') window.renderInvoicesData();
+    }
+
+    // Sync Purchase Orders
+    const poData = await apiFetch('purchase_orders');
+    if (poData) {
+        localStorage.setItem('invoice_flow_pos', JSON.stringify(poData));
+        if (typeof window.renderPOList === 'function') window.renderPOList();
     }
 
     // Sync RDCs
     const rdcData = await apiFetch('rdcs');
     if (rdcData && rdcData.rdcs) {
         localStorage.setItem('invoice_flow_rdcs', JSON.stringify(rdcData.rdcs));
+        if (typeof window.renderRDCList === 'function') window.renderRDCList();
     }
 
     // Sync DCs
@@ -304,6 +313,34 @@ async function syncAllData() {
         } else {
             initLoadingSheets();
         }
+    }
+
+    // Sync Inventory
+    const invtData = await apiFetch('inventory');
+    if (invtData) {
+        localStorage.setItem('invoice_flow_inventory', JSON.stringify(invtData));
+        if (typeof loadInventoryData === 'function') loadInventoryData();
+    }
+
+    // Sync Departments
+    const deptData = await apiFetch('departments');
+    if (deptData) {
+        localStorage.setItem('invoice_flow_departments', JSON.stringify(deptData));
+        if (typeof loadDeptData === 'function') loadDeptData();
+    }
+
+    // Sync Team Members
+    const teamData = await apiFetch('team_members');
+    if (teamData) {
+        localStorage.setItem('invoice_flow_team_members', JSON.stringify(teamData));
+        if (typeof renderTeamList === 'function') renderTeamList();
+    }
+
+    // Sync Company Profile
+    const profileData = await apiFetch('app_settings?key=company_profile');
+    if (profileData && profileData.value) {
+        localStorage.setItem('invoice_flow_company_profile', JSON.stringify(profileData.value));
+        if (typeof initCompanyProfile === 'function') initCompanyProfile();
     }
 }
 
@@ -1562,7 +1599,8 @@ function initDCForm() {
                                 poNo: po.no, 
                                 invCode: item.itemCode, 
                                 productName: product ? product.name : 'Unknown Product',
-                                hsn: product ? product.hsn : ''
+                                hsn: product ? product.hsn : '',
+                                rate: item.rate
                             });
                         }
                     });
@@ -1590,6 +1628,7 @@ function initDCForm() {
                         <td style="padding: 12px; font-weight: 700; color: var(--color-primary-900);">${m.poNo}</td>
                         <td style="padding: 12px; font-size: 0.875rem;">${m.productName}</td>
                         <td style="padding: 12px; font-family: monospace; font-size: 0.875rem;">${m.invCode}</td>
+                        <td style="padding: 12px; font-weight: 700;">₹${parseFloat(m.rate).toFixed(2)}</td>
                         <td style="padding: 12px; text-align: right;">
                             <button class="btn-select-match" data-idx="${idx}" style="background: var(--color-primary-600); color: white; border: none; padding: 6px 12px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; cursor: pointer;">Select</button>
                         </td>
@@ -2516,6 +2555,12 @@ function initInventory() {
             inventory.unshift(newItem);
             localStorage.setItem('invoice_flow_inventory', JSON.stringify(inventory));
             
+            // Sync to Supabase
+            apiFetch('inventory', {
+                method: 'POST',
+                body: JSON.stringify({ sku: code, item_name: code, rate: parseFloat(rate), dept: dept, status: status })
+            });
+            
             // Refresh table
             loadInventoryData();
             
@@ -2663,6 +2708,15 @@ function initDept() {
             }
             
             localStorage.setItem('invoice_flow_departments', JSON.stringify(depts));
+            
+            // Sync to Supabase
+            const deptToSync = depts.find(d => d.name === name);
+            if (deptToSync) {
+                apiFetch('departments', {
+                    method: 'POST',
+                    body: JSON.stringify(deptToSync)
+                });
+            }
             loadDeptData();
             
             modal.style.display = 'none';
@@ -3011,6 +3065,12 @@ function initAuth() {
 
                 localStorage.setItem(STORAGE_KEY_TEAM, JSON.stringify(team));
                 
+                // Sync to Supabase
+                apiFetch('team_members', {
+                    method: 'POST',
+                    body: JSON.stringify(memberData)
+                });
+                
                 modalAdd.style.display = 'none';
                 formAdd.reset();
                 renderTeamList();
@@ -3233,6 +3293,7 @@ function initPO() {
 
     poForm.addEventListener('submit', (e) => {
         e.preventDefault();
+        const poId = document.getElementById('po-id').value;
         const poNo = document.getElementById('po-no').value;
         const poDate = document.getElementById('po-date').value;
         const vendor = document.getElementById('po-vendor').value;
@@ -3250,17 +3311,37 @@ function initPO() {
             return;
         }
 
-        const newPO = { id: Date.now(), no: poNo, date: poDate, vendor: vendor, items: items, status: 'Active', createdAt: new Date().toISOString() };
         const pos = JSON.parse(localStorage.getItem('invoice_flow_pos') || '[]');
-        pos.unshift(newPO);
+        
+        if (poId) {
+            // Edit mode
+            const index = pos.findIndex(p => p.id == poId);
+            if (index !== -1) {
+                pos[index] = { ...pos[index], no: poNo, date: poDate, vendor: vendor, items: items };
+                showNotification('Purchase Order updated successfully!', 'success');
+            }
+        } else {
+            // Create mode
+            const newPO = { id: Date.now(), no: poNo, date: poDate, vendor: vendor, items: items, status: 'Active', createdAt: new Date().toISOString() };
+            pos.unshift(newPO);
+            showNotification('Purchase Order created successfully!', 'success');
+        }
+
         localStorage.setItem('invoice_flow_pos', JSON.stringify(pos));
 
+        // Sync to Supabase
+        const poDataSync = { no: poNo, date: poDate, vendor: vendor, items: items, status: 'Active' };
+        apiFetch('purchase_orders', {
+            method: 'POST',
+            body: JSON.stringify(poDataSync)
+        });
+
         poForm.reset();
+        document.getElementById('po-id').value = '';
         itemsTableBody.innerHTML = '';
         addPORow();
         document.getElementById('modal-add-po').style.display = 'none';
         renderPOList();
-        alert('Purchase Order created successfully!');
     });
 
     if (poSearch) {
@@ -3269,7 +3350,7 @@ function initPO() {
         });
     }
 
-    function renderPOList(searchTerm = '') {
+    window.renderPOList = function(searchTerm = '') {
         const pos = JSON.parse(localStorage.getItem('invoice_flow_pos') || '[]');
         const filtered = pos.filter(po => 
             po.no.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -3298,6 +3379,7 @@ function initPO() {
                     <td style="padding: 16px; text-align: right;">
                         <div style="display: flex; justify-content: flex-end; gap: 8px;">
                             <button onclick="viewPODetails(${po.id})" style="background: none; border: none; color: var(--color-primary-600); cursor: pointer; padding: 4px;" title="View Details"><i class="fas fa-eye"></i></button>
+                            <button onclick="editPO(${po.id})" style="background: none; border: none; color: var(--color-primary-600); cursor: pointer; padding: 4px;" title="Edit PO"><i class="fas fa-edit"></i></button>
                             <button onclick="deletePO(${po.id})" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 4px;" title="Delete PO"><i class="fas fa-trash"></i></button>
                         </div>
                     </td>
@@ -3305,6 +3387,59 @@ function initPO() {
             `;
         }).join('');
     }
+
+    window.openAddPO = function() {
+        const modal = document.getElementById('modal-add-po');
+        const form = document.getElementById('form-add-po');
+        const poIdInput = document.getElementById('po-id');
+        const itemsBody = document.getElementById('po-items-body');
+        const submitBtn = form.querySelector('button[type="submit"]');
+
+        if (!modal || !form || !poIdInput || !itemsBody) return;
+
+        form.reset();
+        poIdInput.value = '';
+        submitBtn.textContent = 'ADD PO';
+        modal.querySelector('h3').textContent = 'ADD PO';
+        itemsBody.innerHTML = '';
+        addPORow();
+        modal.style.display = 'flex';
+    };
+
+    window.editPO = function(id) {
+        const pos = JSON.parse(localStorage.getItem('invoice_flow_pos') || '[]');
+        const po = pos.find(p => p.id === id);
+        if (!po) return;
+
+        const modal = document.getElementById('modal-add-po');
+        const form = document.getElementById('form-add-po');
+        const poIdInput = document.getElementById('po-id');
+        const poNoInput = document.getElementById('po-no');
+        const poDateInput = document.getElementById('po-date');
+        const poVendorInput = document.getElementById('po-vendor');
+        const itemsBody = document.getElementById('po-items-body');
+        const submitBtn = form.querySelector('button[type="submit"]');
+
+        if (!modal || !form || !poIdInput || !poNoInput || !poDateInput || !poVendorInput || !itemsBody) return;
+
+        // Set values
+        poIdInput.value = po.id;
+        poNoInput.value = po.no;
+        poDateInput.value = po.date || '';
+        poVendorInput.value = po.vendor || '';
+        submitBtn.textContent = 'UPDATE PO';
+        modal.querySelector('h3').textContent = 'EDIT PO';
+
+        // Set items
+        itemsBody.innerHTML = '';
+        if (po.items && po.items.length > 0) {
+            po.items.forEach(item => addPORow(item));
+        } else {
+            addPORow();
+        }
+
+        modal.style.display = 'flex';
+    };
 
     window.viewPODetails = function(id) {
         const pos = JSON.parse(localStorage.getItem('invoice_flow_pos') || '[]');
@@ -3317,7 +3452,7 @@ function initPO() {
         const headerGrid = document.getElementById('po-view-modal-header-grid');
         headerGrid.innerHTML = `<div><div style="font-size: 0.75rem; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 4px;">PO Number</div><div style="font-weight: 700; color: #1e293b;">${po.no}</div></div><div><div style="font-size: 0.75rem; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 4px;">Date</div><div style="font-weight: 700; color: #1e293b;">${po.date || 'N/A'}</div></div><div><div style="font-size: 0.75rem; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 4px;">Supplier</div><div style="font-weight: 700; color: #1e293b;">${po.vendor || 'N/A'}</div></div><div><div style="font-size: 0.75rem; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 4px;">Status</div><div><span style="background: var(--color-success-50); color: var(--color-success-700); padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 700;">${po.status}</span></div></div>`;
         const itemsBody = document.getElementById('po-view-modal-items-body');
-        itemsBody.innerHTML = po.items.map((item, idx) => `<tr style="border-bottom: 1px solid #f1f5f9;"><td style="padding: 12px 16px; font-size: 0.875rem; color: #64748b;">${idx + 1}</td><td style="padding: 12px 16px; font-size: 0.875rem; font-weight: 600; color: #1e293b;">${item.itemCode}</td><td style="padding: 12px 16px; font-size: 0.875rem; text-align: center; color: #1e293b;">${item.qty}</td><td style="padding: 12px 16px; font-size: 0.875rem; text-align: center; color: #1e293b;">${formatCurrency(item.rate)}</td><td style="padding: 12px 16px; font-size: 0.875rem; text-align: right; font-weight: 700; color: #1e293b;">${formatCurrency(item.qty * item.rate)}</td></tr>`).join('');
+        itemsBody.innerHTML = po.items.map((item, idx) => `<tr style="border-bottom: solid 1px #f1f5f9;"><td style="padding: 12px 16px; font-size: 0.875rem; color: #64748b;">${idx + 1}</td><td style="padding: 12px 16px; font-size: 0.875rem; font-weight: 600; color: #1e293b;">${item.itemCode}</td><td style="padding: 12px 16px; font-size: 0.875rem; text-align: center; color: #1e293b;">${item.qty}</td><td style="padding: 12px 16px; font-size: 0.875rem; text-align: center; color: #1e293b;">${formatCurrency(item.rate)}</td><td style="padding: 12px 16px; font-size: 0.875rem; text-align: right; font-weight: 700; color: #1e293b;">${formatCurrency(item.qty * item.rate)}</td></tr>`).join('');
         modal.style.display = 'flex';
     };
 
@@ -3405,6 +3540,12 @@ function initCompanyProfile() {
                 logo: logoPreview.src || ''
             };
             localStorage.setItem(STORAGE_KEY_PROFILE, JSON.stringify(updatedProfile));
+            
+            // Sync to Supabase
+            apiFetch('app_settings', {
+                method: 'POST',
+                body: JSON.stringify({ key: 'company_profile', value: updatedProfile })
+            });
             updateAppLogos(updatedProfile.logo);
             updateAllPrintHeaders();
             alert('Company profile updated successfully!');
