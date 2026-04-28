@@ -2985,5 +2985,33 @@
         </div>
     </div>
 
+    <!-- PO Item Selection Modal -->
+    <div id="modal-po-item-selector" class="modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 10000; align-items: center; justify-content: center; backdrop-filter: blur(4px);">
+        <div style="background: white; width: 600px; border-radius: 12px; box-shadow: var(--shadow-2xl); overflow: hidden; animation: modalIn 0.3s ease;">
+            <div style="padding: 20px 24px; background: var(--color-primary-900); color: white; display: flex; justify-content: space-between; align-items: center;">
+                <h3 style="margin: 0; font-size: 1.25rem;">Select Matching Item</h3>
+                <button onclick="document.getElementById('modal-po-item-selector').style.display='none'" style="background: transparent; border: none; color: white; cursor: pointer; font-size: 1.5rem;"><i class="fas fa-times"></i></button>
+            </div>
+            <div style="padding: 24px;">
+                <p style="margin-top: 0; font-size: 0.875rem; color: var(--color-neutral-600); margin-bottom: 16px;">Multiple items found with the same rate. Please select the correct one:</p>
+                <div style="max-height: 400px; overflow-y: auto; border: 1px solid var(--color-neutral-200); border-radius: 8px;">
+                    <table style="width: 100%; border-collapse: collapse; text-align: left;">
+                        <thead style="background: #f8fafc; border-bottom: 1px solid var(--color-neutral-200); position: sticky; top: 0;">
+                            <tr>
+                                <th style="padding: 12px; font-size: 0.75rem; font-weight: 700; color: var(--color-neutral-600); text-transform: uppercase;">PO Number</th>
+                                <th style="padding: 12px; font-size: 0.75rem; font-weight: 700; color: var(--color-neutral-600); text-transform: uppercase;">Product Name</th>
+                                <th style="padding: 12px; font-size: 0.75rem; font-weight: 700; color: var(--color-neutral-600); text-transform: uppercase;">Item Code</th>
+                                <th style="padding: 12px; text-align: right;">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="po-item-selector-body">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
 </body>
 </html>

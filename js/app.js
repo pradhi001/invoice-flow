@@ -1548,23 +1548,69 @@ function initDCForm() {
             if (isNaN(enteredRate) || enteredRate <= 0) return;
 
             const pos = JSON.parse(localStorage.getItem('invoice_flow_pos') || '[]');
-            let match = null;
+            const products = JSON.parse(localStorage.getItem('invoice_flow_products') || '[]');
+            
+            const matches = [];
 
-            // Search through all POs for a matching rate
+            // Search through all POs for all matching items
             for (const po of pos) {
-                const item = po.items.find(it => parseFloat(it.rate) === enteredRate);
-                if (item) {
-                    match = { poNo: po.no, invCode: item.itemCode };
-                    break;
+                if (po.items && Array.isArray(po.items)) {
+                    po.items.forEach(item => {
+                        if (parseFloat(item.rate) === enteredRate) {
+                            const product = products.find(p => p.code === item.itemCode);
+                            matches.push({ 
+                                poNo: po.no, 
+                                invCode: item.itemCode, 
+                                productName: product ? product.name : 'Unknown Product',
+                                hsn: product ? product.hsn : ''
+                            });
+                        }
+                    });
                 }
             }
 
-            if (match) {
-                inputs[0].value = match.poNo;    // PO Order No
-                inputs[9].value = match.invCode; // Inv Item Code
+            const fillRow = (match) => {
+                inputs[0].value = match.poNo;       // PO Order No
+                inputs[1].value = match.productName; // Description
+                inputs[9].value = match.invCode;    // Inv Item Code
+                if (match.hsn) inputs[5].value = match.hsn; // HSN Code
                 showNotification(`Matched with PO: ${match.poNo}`, 'success');
+            };
+
+            if (matches.length === 1) {
+                fillRow(matches[0]);
+            } else if (matches.length > 1) {
+                // Show selection modal
+                const modal = document.getElementById('modal-po-item-selector');
+                const selectorBody = document.getElementById('po-item-selector-body');
+                if (!modal || !selectorBody) return;
+
+                selectorBody.innerHTML = matches.map((m, idx) => `
+                    <tr style="border-bottom: 1px solid var(--color-neutral-100); transition: 0.2s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">
+                        <td style="padding: 12px; font-weight: 700; color: var(--color-primary-900);">${m.poNo}</td>
+                        <td style="padding: 12px; font-size: 0.875rem;">${m.productName}</td>
+                        <td style="padding: 12px; font-family: monospace; font-size: 0.875rem;">${m.invCode}</td>
+                        <td style="padding: 12px; text-align: right;">
+                            <button class="btn-select-match" data-idx="${idx}" style="background: var(--color-primary-600); color: white; border: none; padding: 6px 12px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; cursor: pointer;">Select</button>
+                        </td>
+                    </tr>
+                `).join('');
+
+                modal.style.display = 'flex';
+
+                // Handle selection
+                const handleClick = (event) => {
+                    const btn = event.target.closest('.btn-select-match');
+                    if (btn) {
+                        const match = matches[parseInt(btn.dataset.idx)];
+                        fillRow(match);
+                        modal.style.display = 'none';
+                        selectorBody.removeEventListener('click', handleClick);
+                    }
+                };
+                selectorBody.addEventListener('click', handleClick);
             } else {
-                showNotification('item rate is not available', 'warning');
+                showNotification('Item rate not found in any Purchase Order', 'warning');
             }
         }
     });
