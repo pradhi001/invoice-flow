@@ -108,9 +108,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const session = localStorage.getItem('invoice_flow_session');
         if (session) {
             const userData = JSON.parse(session);
-            if (userEmailSpan) userEmailSpan.textContent = userData.name || 'Admin User';
+            if (userEmailSpan) userEmailSpan.textContent = userData.name || userData.username;
             loginPage.classList.remove('active');
             mainApp.style.display = 'flex';
+            
+            // Apply permissions on reload
+            if (typeof window.applyUserPermissions === 'function') window.applyUserPermissions(userData);
+            
             syncAllData();
         } else {
             loginPage.classList.add('active');
@@ -130,13 +134,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Authenticating...';
                 btn.disabled = true;
 
-                // Authentication Check (Updated credentials)
+                // Authentication Check
                 setTimeout(() => {
+                    const STORAGE_KEY_TEAM = 'invoice_flow_team_members';
+                    const team = JSON.parse(localStorage.getItem(STORAGE_KEY_TEAM) || '[]');
+                    
+                    // Check hardcoded admin OR team members
+                    let authenticatedUser = null;
                     if (username === 'Admin' && password === 'Chellam@1') {
-                        const userData = { name: 'Admin User', role: 'Super Admin', username: 'ADMIN' };
-                        localStorage.setItem('invoice_flow_session', JSON.stringify(userData));
+                        authenticatedUser = { 
+                            name: 'Admin User', 
+                            role: 'Super Admin', 
+                            username: 'Admin',
+                            permissions: ['all'] 
+                        };
+                    } else {
+                        authenticatedUser = team.find(u => u.username === username && u.password === password);
+                    }
+
+                    if (authenticatedUser) {
+                        localStorage.setItem('invoice_flow_session', JSON.stringify(authenticatedUser));
                         
-                        showNotification('Login Successful! Welcome back.', 'success');
+                        showNotification(`Welcome back, ${authenticatedUser.name || authenticatedUser.username}!`, 'success');
+                        
+                        // Update sidebar immediately
+                        if (userEmailSpan) userEmailSpan.textContent = authenticatedUser.name || authenticatedUser.username;
                         
                         // Transition to App
                         loginPage.style.opacity = '0';
@@ -150,6 +172,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             if (typeof initCompanyProfile === 'function') initCompanyProfile();
                             if (typeof updateAllPrintHeaders === 'function') updateAllPrintHeaders();
                             if (typeof window.renderDashboardStats === 'function') window.renderDashboardStats();
+                            if (typeof window.applyUserPermissions === 'function') window.applyUserPermissions(authenticatedUser);
                             
                             // Start global sync
                             syncAllData();
@@ -2840,8 +2863,11 @@ function initAuth() {
         return JSON.parse(sessionStorage.getItem(STORAGE_KEY_SESSION)) || defaultAdmin;
     }
 
-    function applyPermissions(user) {
+    window.applyUserPermissions = function(user) {
         console.log("Applying permissions for:", user.username, user.permissions);
+        
+        const isSuperAdmin = user.role === 'Super Admin' || (user.permissions && user.permissions.includes('all'));
+        
         // Only target top-level nav items that are direct children of the nav container
         const navItems = document.querySelectorAll('.sidebar-nav > [id]');
         navItems.forEach(item => {
@@ -2850,10 +2876,12 @@ function initAuth() {
             const permissionId = item.id;
             const alternateId = permissionId.startsWith('nav-group-') ? permissionId.replace('nav-group-', 'nav-') : permissionId.replace('nav-', 'nav-group-');
             
-            const hasAccess = user.role === 'Super Admin' || 
-                             user.permissions.includes(permissionId) || 
-                             user.permissions.includes(alternateId) ||
-                             (permissionId === 'nav-po' && user.permissions.includes('nav-purchase-orders'));
+            const hasAccess = isSuperAdmin || 
+                             (user.permissions && (
+                                 user.permissions.includes(permissionId) || 
+                                 user.permissions.includes(alternateId) ||
+                                 (permissionId === 'nav-po' && user.permissions.includes('nav-purchase-orders'))
+                             ));
             
             if (hasAccess) {
                 // Use flex for everything as per sidebar.css
@@ -2872,9 +2900,14 @@ function initAuth() {
         const roleLabel = document.getElementById('user-role-label');
         const avatar = document.getElementById('user-avatar');
         
-        if (displayName) displayName.textContent = user.username;
+        if (displayName) displayName.textContent = user.name || user.username;
         if (roleLabel) roleLabel.textContent = user.role;
-        if (avatar) avatar.textContent = user.username.substring(0, 2).toUpperCase();
+        if (avatar) avatar.textContent = (user.name || user.username).substring(0, 2).toUpperCase();
+    }
+
+    // Expose for login
+    function applyPermissions(user) {
+        window.applyUserPermissions(user);
     }
 
     // 4. Team Management (Admin Only)
@@ -3000,27 +3033,7 @@ function initAuth() {
         };
     }
 
-    if (loginForm) {
-        loginForm.onsubmit = (e) => {
-            e.preventDefault();
-            const user = document.getElementById('login-username').value;
-            const pass = document.getElementById('login-password').value;
-            
-            const team = getTeam();
-            const found = team.find(m => m.username === user && m.password === pass);
-            
-            if (found) {
-                sessionStorage.setItem(STORAGE_KEY_SESSION, JSON.stringify(found));
-                loginModal.style.display = 'none';
-                applyPermissions(found);
-                // Return to dashboard on login
-                const dash = document.getElementById('nav-dashboard');
-                if (dash) dash.click();
-            } else {
-                alert('Invalid Username or Password');
-            }
-        };
-    }
+
 
     const initPasswordToggles = () => {
         document.querySelectorAll('.password-toggle-btn').forEach(btn => {
