@@ -118,7 +118,18 @@ document.addEventListener('DOMContentLoaded', () => {
             if (typeof window.applyUserPermissions === 'function') window.applyUserPermissions(userData);
             
             syncAllData();
+
+            // Setup auto-sync
+            if (window.syncInterval) clearInterval(window.syncInterval);
+            window.syncInterval = setInterval(() => syncAllData(), 60000);
+
+            // Setup manual sync button
+            const btnSync = document.getElementById('btn-sync');
+            if (btnSync) {
+                btnSync.onclick = () => syncAllData(true);
+            }
         } else {
+
             loginPage.classList.add('active');
             mainApp.style.display = 'none';
         }
@@ -178,7 +189,18 @@ document.addEventListener('DOMContentLoaded', () => {
                             
                             // Start global sync
                             syncAllData();
+                            
+                            // Setup auto-sync (every 60 seconds)
+                            if (window.syncInterval) clearInterval(window.syncInterval);
+                            window.syncInterval = setInterval(() => syncAllData(), 60000);
+
+                            // Setup manual sync button
+                            const btnSync = document.getElementById('btn-sync');
+                            if (btnSync) {
+                                btnSync.onclick = () => syncAllData(true);
+                            }
                         }, 500);
+
                     } else {
                         showNotification('Invalid username or password. Please try again.', 'error');
                         btn.innerHTML = originalText;
@@ -260,91 +282,112 @@ async function apiFetch(endpoint, options = {}) {
     }
 }
 
-async function syncAllData() {
-    console.log('Starting global sync...');
+async function syncAllData(isManual = false) {
+    const syncIcon = document.getElementById('sync-icon');
+    if (syncIcon) syncIcon.classList.add('fa-spin');
     
-    // Sync Companies/Suppliers
-    const compData = await apiFetch('companies');
-    if (compData && compData.companies) {
-        localStorage.setItem('invoice_flow_customers', JSON.stringify(compData.companies));
-        if (typeof initSupplierForm === 'function') initSupplierForm();
-    }
-
-    // Sync Products
-    const prodData = await apiFetch('products');
-    if (prodData && prodData.products) {
-        localStorage.setItem('invoice_flow_products', JSON.stringify(prodData.products));
-        if (typeof initProducts === 'function') initProducts();
-    }
-
-    // Sync Invoices
-    const invData = await apiFetch('invoices?limit=100');
-    if (invData && invData.invoices) {
-        localStorage.setItem('invoice_flow_invoices', JSON.stringify(invData.invoices));
-        if (typeof window.renderInvoicesData === 'function') window.renderInvoicesData();
-    }
-
-    // Sync Purchase Orders
-    const poData = await apiFetch('purchase_orders');
-    if (poData) {
-        localStorage.setItem('invoice_flow_pos', JSON.stringify(poData));
-        if (typeof window.renderPOList === 'function') window.renderPOList();
-    }
-
-    // Sync RDCs
-    const rdcData = await apiFetch('rdcs');
-    if (rdcData && rdcData.rdcs) {
-        localStorage.setItem('invoice_flow_rdcs', JSON.stringify(rdcData.rdcs));
-        if (typeof window.renderRDCList === 'function') window.renderRDCList();
-    }
-
-    // Sync DCs
-    const dcData = await apiFetch('delivery_challans');
-    if (dcData && dcData.delivery_challans) {
-        localStorage.setItem('invoice_flow_dcs', JSON.stringify(dcData.delivery_challans));
-        if (typeof window.renderDCList === 'function') window.renderDCList();
-    }
-
-    // Sync Loading Sheets
-    const loadData = await apiFetch('loading_sheets');
-    if (loadData && loadData.loading_sheets) {
-        localStorage.setItem('invoice_flow_loading_sheets', JSON.stringify(loadData.loading_sheets));
-        if (typeof window.renderMainLoadingTable === 'function') {
-            window.allLoadingSheets = loadData.loading_sheets;
-            window.renderMainLoadingTable();
-        } else {
-            initLoadingSheets();
+    console.log('Starting global sync...');
+    const startTime = Date.now();
+    
+    try {
+        // Sync Companies/Suppliers
+        const compData = await apiFetch('companies');
+        if (compData && compData.companies) {
+            localStorage.setItem('invoice_flow_customers', JSON.stringify(compData.companies));
+            if (typeof initSupplierForm === 'function') initSupplierForm();
         }
-    }
 
-    // Sync Inventory
-    const invtData = await apiFetch('inventory');
-    if (invtData) {
-        localStorage.setItem('invoice_flow_inventory', JSON.stringify(invtData));
-        if (typeof loadInventoryData === 'function') loadInventoryData();
-    }
+        // Sync Products
+        const prodData = await apiFetch('products');
+        if (prodData && prodData.products) {
+            localStorage.setItem('invoice_flow_products', JSON.stringify(prodData.products));
+            if (typeof initProducts === 'function') initProducts();
+        }
 
-    // Sync Departments
-    const deptData = await apiFetch('departments');
-    if (deptData) {
-        localStorage.setItem('invoice_flow_departments', JSON.stringify(deptData));
-        if (typeof loadDeptData === 'function') loadDeptData();
-    }
+        // Sync Invoices
+        const invData = await apiFetch('invoices?limit=100');
+        if (invData && invData.invoices) {
+            localStorage.setItem('invoice_flow_invoices', JSON.stringify(invData.invoices));
+            if (typeof window.renderInvoicesData === 'function') window.renderInvoicesData();
+        }
 
-    // Sync Team Members
-    const teamData = await apiFetch('team_members');
-    if (teamData) {
-        localStorage.setItem('invoice_flow_team_members', JSON.stringify(teamData));
-        if (typeof renderTeamList === 'function') renderTeamList();
-    }
+        // Sync Purchase Orders
+        const poData = await apiFetch('purchase_orders');
+        if (poData && Array.isArray(poData)) {
+            localStorage.setItem('invoice_flow_pos', JSON.stringify(poData));
+            if (typeof window.renderPOList === 'function') window.renderPOList();
+        }
 
-    // Sync Company Profile
-    const profileData = await apiFetch('app_settings?key=company_profile');
-    if (profileData && profileData.value) {
-        localStorage.setItem('invoice_flow_company_profile', JSON.stringify(profileData.value));
-        if (typeof initCompanyProfile === 'function') initCompanyProfile();
+        // Sync RDCs
+        const rdcData = await apiFetch('rdcs');
+        if (rdcData && rdcData.rdcs) {
+            localStorage.setItem('invoice_flow_rdcs', JSON.stringify(rdcData.rdcs));
+            if (typeof window.renderRDCList === 'function') window.renderRDCList();
+        }
+
+        // Sync DCs
+        const dcData = await apiFetch('delivery_challans');
+        if (dcData && dcData.delivery_challans) {
+            localStorage.setItem('invoice_flow_dcs', JSON.stringify(dcData.delivery_challans));
+            if (typeof window.renderDCList === 'function') window.renderDCList();
+        }
+
+        // Sync Loading Sheets
+        const loadData = await apiFetch('loading_sheets');
+        if (loadData && loadData.loading_sheets) {
+            localStorage.setItem('invoice_flow_loading_sheets', JSON.stringify(loadData.loading_sheets));
+            if (typeof window.renderMainLoadingTable === 'function') {
+                window.allLoadingSheets = loadData.loading_sheets;
+                window.renderMainLoadingTable();
+            } else {
+                if (typeof initLoadingSheets === 'function') initLoadingSheets();
+            }
+        }
+
+        // Sync Inventory
+        const invtData = await apiFetch('inventory');
+        if (invtData) {
+            localStorage.setItem('invoice_flow_inventory', JSON.stringify(invtData));
+            if (typeof loadInventoryData === 'function') loadInventoryData();
+        }
+
+        // Sync Departments
+        const deptData = await apiFetch('departments');
+        if (deptData) {
+            localStorage.setItem('invoice_flow_departments', JSON.stringify(deptData));
+            if (typeof loadDeptData === 'function') loadDeptData();
+        }
+
+        // Sync Team Members
+        const teamData = await apiFetch('team_members');
+        if (teamData) {
+            localStorage.setItem('invoice_flow_team_members', JSON.stringify(teamData));
+            if (typeof renderTeamList === 'function') renderTeamList();
+        }
+
+        // Sync Company Profile
+        const profileData = await apiFetch('app_settings?key=company_profile');
+        if (profileData && profileData.value) {
+            localStorage.setItem('invoice_flow_company_profile', JSON.stringify(profileData.value));
+            if (typeof initCompanyProfile === 'function') initCompanyProfile();
+        }
+
+        if (isManual) {
+            showNotification('Data synchronized successfully!', 'success');
+        }
+    } catch (error) {
+        console.error('Sync Error:', error);
+        if (isManual) showNotification('Sync failed. Please check connection.', 'error');
+    } finally {
+        // Minimum spin time for visual feedback
+        const elapsed = Date.now() - startTime;
+        const minSpin = 600;
+        setTimeout(() => {
+            if (syncIcon) syncIcon.classList.remove('fa-spin');
+        }, Math.max(0, minSpin - elapsed));
     }
 }
+
 
 // --- 3. DASHBOARD DATA ---
 async function loadDashboardData() {
