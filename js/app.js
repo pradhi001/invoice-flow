@@ -3200,6 +3200,131 @@ function initPO() {
 
     if (!poTableBody || !poForm || !itemsTableBody) return;
 
+    window.renderPOList = function(searchTerm = '') {
+        const pos = JSON.parse(localStorage.getItem('invoice_flow_pos') || '[]');
+        const term = (searchTerm || '').toLowerCase();
+
+        const filtered = pos.filter(po => {
+            const poNo = (po.no || '').toLowerCase();
+            const vendor = (po.vendor || '').toLowerCase();
+            const itemsMatch = (po.items || []).some(it => (it.itemCode || '').toLowerCase().includes(term));
+            
+            return poNo.includes(term) || vendor.includes(term) || itemsMatch;
+        });
+
+        if (filtered.length === 0) {
+            poTableBody.innerHTML = `<tr><td colspan="6" style="padding: 40px; text-align: center; color: var(--color-neutral-400);">No purchase orders found.</td></tr>`;
+            return;
+        }
+
+        poTableBody.innerHTML = filtered.map(po => {
+            const items = po.items || [];
+            const firstItem = items[0] || { itemCode: 'N/A' };
+            const itemDisplay = items.length > 1 ? `${firstItem.itemCode} <span style="color: var(--color-neutral-400); font-size: 0.75rem;">(+${items.length - 1} more)</span>` : firstItem.itemCode;
+            const totalQty = items.reduce((sum, it) => sum + (parseFloat(it.qty) || 0), 0);
+            const avgRate = items.length > 0 ? (items.reduce((sum, it) => sum + (parseFloat(it.rate) || 0), 0) / items.length) : 0;
+
+            return `
+                <tr style="border-bottom: 1px solid var(--color-neutral-100); transition: 0.2s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">
+                    <td style="padding: 16px;"><div style="font-weight: 700; color: var(--color-primary-900);">${po.no || 'N/A'}</div><div style="font-size: 0.75rem; color: var(--color-neutral-500);">${po.date || ''}</div></td>
+                    <td style="padding: 16px; color: var(--color-neutral-700);">${itemDisplay}</td>
+                    <td style="padding: 16px; color: var(--color-neutral-900); font-weight: 600;">${typeof formatCurrency === 'function' ? formatCurrency(avgRate) : avgRate.toFixed(2)}</td>
+                    <td style="padding: 16px; color: var(--color-neutral-900); font-weight: 600;">${totalQty} Nos</td>
+                    <td style="padding: 16px;"><span style="background: var(--color-success-50); color: var(--color-success-700); padding: 4px 10px; border-radius: 99px; font-size: 0.75rem; font-weight: 700;">${po.status || 'Active'}</span></td>
+                    <td style="padding: 16px; text-align: right;">
+                        <div style="display: flex; justify-content: flex-end; gap: 8px;">
+                            <button onclick="viewPODetails(${po.id})" style="background: none; border: none; color: var(--color-primary-600); cursor: pointer; padding: 4px;" title="View Details"><i class="fas fa-eye"></i></button>
+                            <button onclick="editPO(${po.id})" style="background: none; border: none; color: var(--color-primary-600); cursor: pointer; padding: 4px;" title="Edit PO"><i class="fas fa-edit"></i></button>
+                            <button onclick="deletePO(${po.id})" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 4px;" title="Delete PO"><i class="fas fa-trash"></i></button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    };
+
+
+    // Attach submit listener EARLY to prevent default reloads even if rendering fails
+    poForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        console.log('PO Form Submit Triggered');
+        try {
+            const poId = document.getElementById('po-id').value;
+            const poNo = (document.getElementById('po-no').value || '').trim();
+            const poDate = document.getElementById('po-date').value;
+            const vendor = document.getElementById('po-vendor').value;
+            const items = [];
+            const rows = itemsTableBody.querySelectorAll('tr');
+            
+            rows.forEach(row => {
+                const itemCodeInput = row.querySelector('.item-code-input');
+                const rateInput = row.querySelector('.rate-input');
+                const qtyInput = row.querySelector('.qty-input');
+                
+                if (itemCodeInput && itemCodeInput.value.trim()) {
+                    items.push({ 
+                        itemCode: itemCodeInput.value.trim(), 
+                        rate: parseFloat(rateInput?.value) || 0, 
+                        qty: parseFloat(qtyInput?.value) || 0 
+                    });
+                }
+            });
+
+            if (items.length === 0) {
+                alert('Please add at least one item.');
+                return;
+            }
+
+            const pos = JSON.parse(localStorage.getItem('invoice_flow_pos') || '[]');
+            
+            if (poId) {
+                // Edit mode
+                const index = pos.findIndex(p => p.id == poId);
+                if (index !== -1) {
+                    pos[index] = { ...pos[index], no: poNo, date: poDate, vendor: vendor, items: items };
+                    showNotification('Purchase Order updated successfully!', 'success');
+                }
+            } else {
+                // Create mode
+                const newPO = { 
+                    id: Date.now(), 
+                    no: poNo, 
+                    date: poDate, 
+                    vendor: vendor, 
+                    items: items, 
+                    status: 'Active', 
+                    createdAt: new Date().toISOString() 
+                };
+                pos.unshift(newPO);
+                showNotification('Purchase Order created successfully!', 'success');
+            }
+
+            localStorage.setItem('invoice_flow_pos', JSON.stringify(pos));
+
+            // Sync to Supabase (Non-blocking)
+            const poDataSync = { no: poNo, date: poDate, vendor: vendor, items: items, status: 'Active' };
+            apiFetch('purchase_orders', {
+                method: 'POST',
+                body: JSON.stringify(poDataSync)
+            }).catch(err => console.warn('Supabase sync error:', err));
+
+            // UI Reset
+            poForm.reset();
+            document.getElementById('po-id').value = '';
+            itemsTableBody.innerHTML = '';
+            window.addPORow();
+            document.getElementById('modal-add-po').style.display = 'none';
+            window.renderPOList();
+            
+            
+        } catch (err) {
+
+            console.error('PO Submission Error:', err);
+            alert('Error saving Purchase Order: ' + err.message);
+        }
+    });
+
+
     const btnOpenAdd = document.getElementById('btn-open-add-po');
     if (btnOpenAdd) {
         btnOpenAdd.onclick = () => {
@@ -3211,7 +3336,7 @@ function initPO() {
         };
     }
 
-    function addPORow(data = null) {
+    window.addPORow = function(data = null) {
         const tr = document.createElement('tr');
         tr.style.borderBottom = '1px solid var(--color-neutral-100)';
         tr.innerHTML = `
@@ -3237,6 +3362,11 @@ function initPO() {
                 tr.querySelectorAll('input').forEach(input => input.value = '');
             }
         });
+    }
+
+    // Initialize with one row if empty
+    if (itemsTableBody.children.length === 0) {
+        window.addPORow();
     }
 
     if (itemsTableBody.children.length === 0) {
@@ -3297,110 +3427,25 @@ function initPO() {
     }
 
     // Call it immediately and on modal open
-    populateSuppliers();
+    try {
+        populateSuppliers();
+        if (typeof window.renderPOList === 'function') {
+            window.renderPOList();
+        }
+    } catch (e) {
+        console.error("Error during initial PO rendering:", e);
+    }
+
     window.addEventListener('click', (e) => {
         if (e.target.id === 'modal-add-po') populateSuppliers();
     });
-
-    renderPOList();
-
-    poForm.addEventListener('submit', (e) => {
-        e.preventDefault();
-        const poId = document.getElementById('po-id').value;
-        const poNo = document.getElementById('po-no').value;
-        const poDate = document.getElementById('po-date').value;
-        const vendor = document.getElementById('po-vendor').value;
-        const items = [];
-        const rows = itemsTableBody.querySelectorAll('tr');
-        rows.forEach(row => {
-            const itemCode = row.querySelector('.item-code-input').value;
-            const rate = parseFloat(row.querySelector('.rate-input').value) || 0;
-            const qty = parseFloat(row.querySelector('.qty-input').value) || 0;
-            if (itemCode) items.push({ itemCode, rate, qty });
-        });
-
-        if (items.length === 0) {
-            alert('Please add at least one item.');
-            return;
-        }
-
-        const pos = JSON.parse(localStorage.getItem('invoice_flow_pos') || '[]');
-        
-        if (poId) {
-            // Edit mode
-            const index = pos.findIndex(p => p.id == poId);
-            if (index !== -1) {
-                pos[index] = { ...pos[index], no: poNo, date: poDate, vendor: vendor, items: items };
-                showNotification('Purchase Order updated successfully!', 'success');
-            }
-        } else {
-            // Create mode
-            const newPO = { id: Date.now(), no: poNo, date: poDate, vendor: vendor, items: items, status: 'Active', createdAt: new Date().toISOString() };
-            pos.unshift(newPO);
-            showNotification('Purchase Order created successfully!', 'success');
-        }
-
-        localStorage.setItem('invoice_flow_pos', JSON.stringify(pos));
-
-        // Sync to Supabase
-        const poDataSync = { no: poNo, date: poDate, vendor: vendor, items: items, status: 'Active' };
-        apiFetch('purchase_orders', {
-            method: 'POST',
-            body: JSON.stringify(poDataSync)
-        });
-
-        poForm.reset();
-        document.getElementById('po-id').value = '';
-        itemsTableBody.innerHTML = '';
-        addPORow();
-        document.getElementById('modal-add-po').style.display = 'none';
-        renderPOList();
-    });
-
     if (poSearch) {
         poSearch.addEventListener('input', (e) => {
-            renderPOList(e.target.value);
+            if (typeof window.renderPOList === 'function') {
+                window.renderPOList(e.target.value);
+            }
         });
     }
-
-    window.renderPOList = function(searchTerm = '') {
-        const pos = JSON.parse(localStorage.getItem('invoice_flow_pos') || '[]');
-        const filtered = pos.filter(po => 
-            po.no.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (po.vendor && po.vendor.toLowerCase().includes(searchTerm.toLowerCase())) ||
-            po.items.some(it => it.itemCode.toLowerCase().includes(searchTerm.toLowerCase()))
-        );
-
-        if (filtered.length === 0) {
-            poTableBody.innerHTML = `<tr><td colspan="6" style="padding: 40px; text-align: center; color: var(--color-neutral-400);">No purchase orders found.</td></tr>`;
-            return;
-        }
-
-        poTableBody.innerHTML = filtered.map(po => {
-            const firstItem = po.items[0];
-            const itemDisplay = po.items.length > 1 ? `${firstItem.itemCode} <span style="color: var(--color-neutral-400); font-size: 0.75rem;">(+${po.items.length - 1} more)</span>` : firstItem.itemCode;
-            const totalQty = po.items.reduce((sum, it) => sum + it.qty, 0);
-            const avgRate = po.items.reduce((sum, it) => sum + it.rate, 0) / po.items.length;
-
-            return `
-                <tr style="border-bottom: 1px solid var(--color-neutral-100); transition: 0.2s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">
-                    <td style="padding: 16px;"><div style="font-weight: 700; color: var(--color-primary-900);">${po.no}</div><div style="font-size: 0.75rem; color: var(--color-neutral-500);">${po.date || ''}</div></td>
-                    <td style="padding: 16px; color: var(--color-neutral-700);">${itemDisplay}</td>
-                    <td style="padding: 16px; color: var(--color-neutral-900); font-weight: 600;">${typeof formatCurrency === 'function' ? formatCurrency(avgRate) : avgRate.toFixed(2)}</td>
-                    <td style="padding: 16px; color: var(--color-neutral-900); font-weight: 600;">${totalQty} Nos</td>
-                    <td style="padding: 16px;"><span style="background: var(--color-success-50); color: var(--color-success-700); padding: 4px 10px; border-radius: 99px; font-size: 0.75rem; font-weight: 700;">${po.status}</span></td>
-                    <td style="padding: 16px; text-align: right;">
-                        <div style="display: flex; justify-content: flex-end; gap: 8px;">
-                            <button onclick="viewPODetails(${po.id})" style="background: none; border: none; color: var(--color-primary-600); cursor: pointer; padding: 4px;" title="View Details"><i class="fas fa-eye"></i></button>
-                            <button onclick="editPO(${po.id})" style="background: none; border: none; color: var(--color-primary-600); cursor: pointer; padding: 4px;" title="Edit PO"><i class="fas fa-edit"></i></button>
-                            <button onclick="deletePO(${po.id})" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 4px;" title="Delete PO"><i class="fas fa-trash"></i></button>
-                        </div>
-                    </td>
-                </tr>
-            `;
-        }).join('');
-    }
-
     window.openAddPO = function() {
         const modal = document.getElementById('modal-add-po');
         const form = document.getElementById('form-add-po');
