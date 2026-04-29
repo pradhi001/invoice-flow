@@ -1,6 +1,8 @@
 /* ========================================
    Invoice Flow - App JavaScript
+   Version: 1.1.3
    ======================================== */
+console.log('App Version: 1.1.3 Loaded');
 
 // --- 1. API CONFIG ---
 // Change this to your Vercel backend URL after deployment
@@ -311,6 +313,7 @@ async function syncAllData(isManual = false) {
 
         // Sync Purchase Orders
         const poData = await apiFetch('purchase_orders');
+        console.log(`Sync: Received ${poData?.length || 0} Purchase Orders from server`);
         if (poData && Array.isArray(poData)) {
             localStorage.setItem('invoice_flow_pos', JSON.stringify(poData));
             if (typeof window.renderPOList === 'function') window.renderPOList();
