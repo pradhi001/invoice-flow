@@ -8,7 +8,7 @@ console.log('App Version: 1.1.3 Loaded');
 // Change this to your Vercel backend URL after deployment
 // For local dev: 'http://localhost:3000'
 // For production: 'https://your-backend.vercel.app'
-const API_BASE = 'https://invoice-flow-sigma-plum.vercel.app';
+const API_BASE = 'https://invoice-flow-pradhi.vercel.app';
 
 /**
  * Notification System
@@ -122,6 +122,10 @@ document.addEventListener('DOMContentLoaded', () => {
             // Setup auto-sync
             if (window.syncInterval) clearInterval(window.syncInterval);
             window.syncInterval = setInterval(() => syncAllData(), 60000);
+            window.addEventListener('focus', () => syncAllData());
+            document.addEventListener('visibilitychange', () => {
+                if (!document.hidden) syncAllData();
+            });
 
             // Setup manual sync button
             const btnSync = document.getElementById('btn-sync');
@@ -264,6 +268,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // --- 2. API HELPER ---
 async function apiFetch(endpoint, options = {}) {
     try {
+        const method = (options.method || 'GET').toUpperCase();
         const response = await fetch(`${API_BASE}/api/${endpoint}`, {
             ...options,
             headers: {
@@ -275,11 +280,77 @@ async function apiFetch(endpoint, options = {}) {
             const err = await response.json().catch(() => ({}));
             throw new Error(err.error || `HTTP error! status: ${response.status}`);
         }
-        return await response.json();
+        const payload = await response.json();
+
+        // Keep all browser sessions in sync after successful mutations.
+        if (method !== 'GET' && method !== 'HEAD' && !options.skipAutoSync) {
+            scheduleGlobalSync();
+        }
+
+        return payload;
     } catch (error) {
         console.warn(`API Error (${endpoint}):`, error.message);
         return null;
     }
+}
+
+let syncTimer = null;
+function scheduleGlobalSync(delay = 500) {
+    if (syncTimer) clearTimeout(syncTimer);
+    syncTimer = setTimeout(() => {
+        syncAllData().catch(() => {});
+    }, delay);
+}
+
+function normalizeDeliveryChallanFromApi(dc) {
+    return {
+        id: dc.id,
+        dcNo: dc.challan_number || dc.dcNo || '',
+        dcDate: dc.date || dc.dcDate || '',
+        vendorName: dc.companies?.name || dc.vendorName || '',
+        items: Array.isArray(dc.items) ? dc.items : [],
+        totalQty: Array.isArray(dc.items)
+            ? dc.items.reduce((sum, item) => sum + (parseFloat(item.qty) || 0), 0)
+            : (dc.totalQty || 0)
+    };
+}
+
+function normalizeRdcFromApi(rdc) {
+    return {
+        id: rdc.id,
+        noFull: rdc.rdc_number || rdc.noFull || '',
+        date: rdc.date || '',
+        dept: rdc.dept || '',
+        customer: rdc.companies?.name || rdc.customer || '',
+        autoDeleteLimit: rdc.auto_delete_limit || rdc.autoDeleteLimit || 90,
+        items: Array.isArray(rdc.items) ? rdc.items : []
+    };
+}
+
+function normalizeLoadingSheetFromApi(sheet) {
+    const items = Array.isArray(sheet.items) ? sheet.items : [];
+    const totalCutting = items.reduce((sum, item) => sum + ((parseFloat(item.nos) || 0) * (parseFloat(item.cutting) || 0)), 0);
+    const totalRate = items.reduce((sum, item) => sum + (parseFloat(item.rate) || 0), 0);
+    return {
+        id: sheet.id,
+        dcNo: sheet.dc_number || sheet.dcNo || '',
+        date: sheet.date || '',
+        totalNos: sheet.total_nos || sheet.totalNos || 0,
+        totalCutting: sheet.totalCutting || totalCutting,
+        totalRate: sheet.totalRate || totalRate,
+        grandTotal: sheet.grand_total || sheet.grandTotal || 0,
+        items
+    };
+}
+
+function normalizeInventoryFromApi(item) {
+    return {
+        id: item.id,
+        rate: item.unit_price ?? item.rate ?? 0,
+        code: item.sku || item.code || '',
+        dept: item.category || item.dept || '',
+        status: item.status || 'Active'
+    };
 }
 
 async function syncAllData(isManual = false) {
@@ -322,23 +393,26 @@ async function syncAllData(isManual = false) {
         // Sync RDCs
         const rdcData = await apiFetch('rdcs');
         if (rdcData && rdcData.rdcs) {
-            localStorage.setItem('invoice_flow_rdcs', JSON.stringify(rdcData.rdcs));
+            const normalizedRdcs = rdcData.rdcs.map(normalizeRdcFromApi);
+            localStorage.setItem('invoice_flow_rdcs', JSON.stringify(normalizedRdcs));
             if (typeof window.renderRDCList === 'function') window.renderRDCList();
         }
 
         // Sync DCs
         const dcData = await apiFetch('delivery_challans');
         if (dcData && dcData.delivery_challans) {
-            localStorage.setItem('invoice_flow_dcs', JSON.stringify(dcData.delivery_challans));
+            const normalizedDcs = dcData.delivery_challans.map(normalizeDeliveryChallanFromApi);
+            localStorage.setItem('invoice_flow_dcs', JSON.stringify(normalizedDcs));
             if (typeof window.renderDCList === 'function') window.renderDCList();
         }
 
         // Sync Loading Sheets
         const loadData = await apiFetch('loading_sheets');
         if (loadData && loadData.loading_sheets) {
-            localStorage.setItem('invoice_flow_loading_sheets', JSON.stringify(loadData.loading_sheets));
+            const normalizedSheets = loadData.loading_sheets.map(normalizeLoadingSheetFromApi);
+            localStorage.setItem('invoice_flow_loading_sheets', JSON.stringify(normalizedSheets));
             if (typeof window.renderMainLoadingTable === 'function') {
-                window.allLoadingSheets = loadData.loading_sheets;
+                window.allLoadingSheets = normalizedSheets;
                 window.renderMainLoadingTable();
             } else {
                 if (typeof initLoadingSheets === 'function') initLoadingSheets();
@@ -348,7 +422,8 @@ async function syncAllData(isManual = false) {
         // Sync Inventory
         const invtData = await apiFetch('inventory');
         if (invtData) {
-            localStorage.setItem('invoice_flow_inventory', JSON.stringify(invtData));
+            const normalizedInventory = Array.isArray(invtData) ? invtData.map(normalizeInventoryFromApi) : [];
+            localStorage.setItem('invoice_flow_inventory', JSON.stringify(normalizedInventory));
             if (typeof loadInventoryData === 'function') loadInventoryData();
         }
 
@@ -2588,7 +2663,7 @@ function initInventory() {
     }
 
     if (form) {
-        form.addEventListener('submit', (e) => {
+        form.addEventListener('submit', async (e) => {
             e.preventDefault();
             
             const code = document.getElementById('item-code-input').value;
@@ -2596,16 +2671,25 @@ function initInventory() {
             const dept = document.getElementById('item-dept-input').value;
             const status = document.getElementById('item-status-input').value;
 
+            const savedItem = await apiFetch('inventory', {
+                method: 'POST',
+                body: JSON.stringify({
+                    sku: code,
+                    item_name: code,
+                    unit_price: parseFloat(rate) || 0,
+                    category: dept || '',
+                    quantity: 0
+                })
+            });
+            if (!savedItem) {
+                if (typeof showNotification === 'function') showNotification('Failed to save item to server', 'error');
+                return;
+            }
+            
             const newItem = { rate, code, dept, status };
             const inventory = JSON.parse(localStorage.getItem('invoice_flow_inventory') || '[]');
             inventory.unshift(newItem);
             localStorage.setItem('invoice_flow_inventory', JSON.stringify(inventory));
-            
-            // Sync to Supabase
-            apiFetch('inventory', {
-                method: 'POST',
-                body: JSON.stringify({ sku: code, item_name: code, rate: parseFloat(rate), dept: dept, status: status })
-            });
             
             // Refresh table
             loadInventoryData();
@@ -2734,7 +2818,7 @@ function initDept() {
     }
 
     if (form) {
-        form.addEventListener('submit', (e) => {
+        form.addEventListener('submit', async (e) => {
             e.preventDefault();
             const name = document.getElementById('dept-name-input').value;
             const depts = JSON.parse(localStorage.getItem('invoice_flow_departments') || '[]');
@@ -2753,16 +2837,19 @@ function initDept() {
                 depts.unshift({ id, name, employees: 0, status: 'Active' });
             }
             
-            localStorage.setItem('invoice_flow_departments', JSON.stringify(depts));
-            
-            // Sync to Supabase
             const deptToSync = depts.find(d => d.name === name);
             if (deptToSync) {
-                apiFetch('departments', {
+                const savedDept = await apiFetch('departments', {
                     method: 'POST',
                     body: JSON.stringify(deptToSync)
                 });
+                if (!savedDept) {
+                    if (typeof showNotification === 'function') showNotification('Failed to save department to server', 'error');
+                    return;
+                }
             }
+            
+            localStorage.setItem('invoice_flow_departments', JSON.stringify(depts));
             loadDeptData();
             
             modal.style.display = 'none';
@@ -2885,7 +2972,7 @@ function initProducts() {
     renderProducts();
 
     if (form) {
-        form.addEventListener('submit', (e) => {
+        form.addEventListener('submit', async (e) => {
             e.preventDefault();
             const name = document.getElementById('product-name-input').value;
             const code = document.getElementById('product-code-input').value;
@@ -2893,15 +2980,18 @@ function initProducts() {
             const rate = document.getElementById('product-rate-input').value;
 
             const product = { name, code, hsn, rate: parseFloat(rate) };
-            const products = JSON.parse(localStorage.getItem('invoice_flow_products') || '[]');
-            products.unshift(product);
-            localStorage.setItem('invoice_flow_products', JSON.stringify(products));
-            
-            // Sync to Supabase
-            apiFetch('products', { 
+            const savedProduct = await apiFetch('products', { 
                 method: 'POST', 
                 body: JSON.stringify(product) 
             });
+            if (!savedProduct) {
+                if (typeof showNotification === 'function') showNotification('Failed to save product to server', 'error');
+                return;
+            }
+
+            const products = JSON.parse(localStorage.getItem('invoice_flow_products') || '[]');
+            products.unshift(product);
+            localStorage.setItem('invoice_flow_products', JSON.stringify(products));
 
             renderProducts();
             modal.style.display = 'none';
@@ -3277,9 +3367,9 @@ function initPO() {
                     <td style="padding: 16px;"><span style="background: var(--color-success-50); color: var(--color-success-700); padding: 4px 10px; border-radius: 99px; font-size: 0.75rem; font-weight: 700;">${po.status || 'Active'}</span></td>
                     <td style="padding: 16px; text-align: right;">
                         <div style="display: flex; justify-content: flex-end; gap: 8px;">
-                            <button onclick="viewPODetails(${po.id})" style="background: none; border: none; color: var(--color-primary-600); cursor: pointer; padding: 4px;" title="View Details"><i class="fas fa-eye"></i></button>
-                            <button onclick="editPO(${po.id})" style="background: none; border: none; color: var(--color-primary-600); cursor: pointer; padding: 4px;" title="Edit PO"><i class="fas fa-edit"></i></button>
-                            <button onclick="deletePO(${po.id})" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 4px;" title="Delete PO"><i class="fas fa-trash"></i></button>
+                            <button onclick="viewPODetails('${po.id}')" style="background: none; border: none; color: var(--color-primary-600); cursor: pointer; padding: 4px;" title="View Details"><i class="fas fa-eye"></i></button>
+                            <button onclick="editPO('${po.id}')" style="background: none; border: none; color: var(--color-primary-600); cursor: pointer; padding: 4px;" title="Edit PO"><i class="fas fa-edit"></i></button>
+                            <button onclick="deletePO('${po.id}')" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 4px;" title="Delete PO"><i class="fas fa-trash"></i></button>
                         </div>
                     </td>
                 </tr>
@@ -3289,7 +3379,7 @@ function initPO() {
 
 
     // Attach submit listener EARLY to prevent default reloads even if rendering fails
-    poForm.addEventListener('submit', (e) => {
+    poForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         console.log('PO Form Submit Triggered');
         try {
@@ -3319,38 +3409,34 @@ function initPO() {
                 return;
             }
 
-            const pos = JSON.parse(localStorage.getItem('invoice_flow_pos') || '[]');
-            
+            let savedPO = null;
+
             if (poId) {
-                // Edit mode
-                const index = pos.findIndex(p => p.id == poId);
-                if (index !== -1) {
-                    pos[index] = { ...pos[index], no: poNo, date: poDate, vendor: vendor, items: items };
-                    showNotification('Purchase Order updated successfully!', 'success');
-                }
+                savedPO = await apiFetch('purchase_orders', {
+                    method: 'PUT',
+                    body: JSON.stringify({ id: poId, no: poNo, date: poDate, vendor: vendor, items: items, status: 'Active' })
+                });
+                if (!savedPO) throw new Error('Failed to update PO on server');
+                showNotification('Purchase Order updated successfully!', 'success');
             } else {
-                // Create mode
-                const newPO = { 
-                    id: Date.now(), 
-                    no: poNo, 
-                    date: poDate, 
-                    vendor: vendor, 
-                    items: items, 
-                    status: 'Active', 
-                    createdAt: new Date().toISOString() 
-                };
-                pos.unshift(newPO);
+                savedPO = await apiFetch('purchase_orders', {
+                    method: 'POST',
+                    body: JSON.stringify({ no: poNo, date: poDate, vendor: vendor, items: items, status: 'Active' })
+                });
+                if (!savedPO) throw new Error('Failed to create PO on server');
                 showNotification('Purchase Order created successfully!', 'success');
             }
 
-            localStorage.setItem('invoice_flow_pos', JSON.stringify(pos));
-
-            // Sync to Supabase (Non-blocking)
-            const poDataSync = { no: poNo, date: poDate, vendor: vendor, items: items, status: 'Active' };
-            apiFetch('purchase_orders', {
-                method: 'POST',
-                body: JSON.stringify(poDataSync)
-            }).catch(err => console.warn('Supabase sync error:', err));
+            const latestPOs = await apiFetch('purchase_orders');
+            if (latestPOs && Array.isArray(latestPOs)) {
+                localStorage.setItem('invoice_flow_pos', JSON.stringify(latestPOs));
+            } else if (savedPO) {
+                const pos = JSON.parse(localStorage.getItem('invoice_flow_pos') || '[]');
+                const index = pos.findIndex(p => String(p.id) === String(savedPO.id));
+                if (index !== -1) pos[index] = savedPO;
+                else pos.unshift(savedPO);
+                localStorage.setItem('invoice_flow_pos', JSON.stringify(pos));
+            }
 
             // UI Reset
             poForm.reset();
@@ -3510,7 +3596,7 @@ function initPO() {
 
     window.editPO = function(id) {
         const pos = JSON.parse(localStorage.getItem('invoice_flow_pos') || '[]');
-        const po = pos.find(p => p.id === id);
+        const po = pos.find(p => String(p.id) === String(id));
         if (!po) return;
 
         const modal = document.getElementById('modal-add-po');
@@ -3545,7 +3631,7 @@ function initPO() {
 
     window.viewPODetails = function(id) {
         const pos = JSON.parse(localStorage.getItem('invoice_flow_pos') || '[]');
-        const po = pos.find(p => p.id === id);
+        const po = pos.find(p => String(p.id) === String(id));
         if (!po) return;
         const modal = document.getElementById('modal-po-view-details');
         if (!modal) return;
@@ -3558,10 +3644,15 @@ function initPO() {
         modal.style.display = 'flex';
     };
 
-    window.deletePO = function(id) {
+    window.deletePO = async function(id) {
         if (!confirm('Are you sure you want to delete this Purchase Order?')) return;
+        const deleted = await apiFetch(`purchase_orders?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+        if (!deleted) {
+            if (typeof showNotification === 'function') showNotification('Failed to delete PO from server', 'error');
+            return;
+        }
         let pos = JSON.parse(localStorage.getItem('invoice_flow_pos') || '[]');
-        pos = pos.filter(po => po.id !== id);
+        pos = pos.filter(po => String(po.id) !== String(id));
         localStorage.setItem('invoice_flow_pos', JSON.stringify(pos));
         renderPOList();
         if (typeof showNotification === 'function') showNotification('PO deleted successfully', 'info');
@@ -3627,7 +3718,7 @@ function initCompanyProfile() {
 
     // Save Profile
     if (saveBtn) {
-        saveBtn.addEventListener('click', () => {
+        saveBtn.addEventListener('click', async () => {
             const updatedProfile = {
                 name: document.getElementById('profile-company-name').value,
                 gst: document.getElementById('profile-gst-no').value,
@@ -3641,13 +3732,15 @@ function initCompanyProfile() {
                 currency: document.getElementById('settings-currency').value,
                 logo: logoPreview.src || ''
             };
-            localStorage.setItem(STORAGE_KEY_PROFILE, JSON.stringify(updatedProfile));
-            
-            // Sync to Supabase
-            apiFetch('app_settings', {
+            const savedProfile = await apiFetch('app_settings', {
                 method: 'POST',
                 body: JSON.stringify({ key: 'company_profile', value: updatedProfile })
             });
+            if (!savedProfile) {
+                alert('Failed to update company profile on server.');
+                return;
+            }
+            localStorage.setItem(STORAGE_KEY_PROFILE, JSON.stringify(updatedProfile));
             updateAppLogos(updatedProfile.logo);
             updateAllPrintHeaders();
             alert('Company profile updated successfully!');

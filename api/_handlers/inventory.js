@@ -1,4 +1,4 @@
-const supabase = require('../lib/supabase');
+const supabase = require('../../lib/supabase');
 
 module.exports = async (req, res) => {
     const { method } = req;
@@ -6,7 +6,7 @@ module.exports = async (req, res) => {
     try {
         if (method === 'GET') {
             const { data, error } = await supabase
-                .from('departments')
+                .from('inventory')
                 .select('*')
                 .order('created_at', { ascending: false });
 
@@ -15,10 +15,10 @@ module.exports = async (req, res) => {
         }
 
         if (method === 'POST') {
-            const dept = req.body;
+            const item = req.body;
             const { data, error } = await supabase
-                .from('departments')
-                .upsert([dept], { onConflict: 'id' })
+                .from('inventory')
+                .upsert([item], { onConflict: 'sku' }) // Assuming SKU is unique identifier like 'code' in frontend
                 .select();
 
             if (error) throw error;
@@ -28,7 +28,7 @@ module.exports = async (req, res) => {
         if (method === 'DELETE') {
             const { id } = req.query;
             const { error } = await supabase
-                .from('departments')
+                .from('inventory')
                 .delete()
                 .match({ id });
 
@@ -39,7 +39,7 @@ module.exports = async (req, res) => {
         res.setHeader('Allow', ['GET', 'POST', 'DELETE']);
         return res.status(405).end(`Method ${method} Not Allowed`);
     } catch (error) {
-        console.error('Departments API Error:', error);
+        console.error('Inventory API Error:', error);
         return res.status(500).json({ error: error.message });
     }
 };

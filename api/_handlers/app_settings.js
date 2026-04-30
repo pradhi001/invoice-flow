@@ -1,4 +1,4 @@
-const supabase = require('../lib/supabase');
+const supabase = require('../../lib/supabase');
 
 module.exports = async (req, res) => {
     const { method } = req;

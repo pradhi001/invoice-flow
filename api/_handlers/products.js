@@ -1,4 +1,4 @@
-const supabase = require('../lib/supabase');
+const supabase = require('../../lib/supabase');
 
 module.exports = async function handler(req, res) {
     if (req.method === 'OPTIONS') return res.status(200).end();

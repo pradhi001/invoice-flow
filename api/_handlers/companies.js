@@ -1,35 +1,37 @@
-const supabase = require('../lib/supabase');
+const supabase = require('../../lib/supabase');
 
 module.exports = async function handler(req, res) {
     if (req.method === 'OPTIONS') return res.status(200).end();
 
+    // --- GET: List companies ---
     if (req.method === 'GET') {
         try {
             const { data, error } = await supabase
-                .from('rdcs')
+                .from('companies')
                 .select('*')
-                .order('created_at', { ascending: false });
+                .order('name');
 
             if (error) throw error;
-            return res.status(200).json({ success: true, rdcs: data });
+            return res.status(200).json({ success: true, companies: data });
         } catch (error) {
             return res.status(500).json({ success: false, error: error.message });
         }
     }
 
+    // --- POST: Create company ---
     if (req.method === 'POST') {
         try {
-            const { rdc_number, company_id, dept, date, items, auto_delete_limit } = req.body;
-            if (!rdc_number) return res.status(400).json({ success: false, error: 'RDC number is required.' });
+            const { name, email, phone, address, avatar_color } = req.body;
+            if (!name) return res.status(400).json({ success: false, error: 'Company name is required.' });
 
             const { data, error } = await supabase
-                .from('rdcs')
-                .upsert([{ rdc_number, company_id, dept, date, items, auto_delete_limit }], { onConflict: 'rdc_number' })
+                .from('companies')
+                .insert([{ name, email, phone, address, avatar_color: avatar_color || '#0a3d6b' }])
                 .select()
                 .single();
 
             if (error) throw error;
-            return res.status(201).json({ success: true, rdc: data });
+            return res.status(201).json({ success: true, company: data });
         } catch (error) {
             return res.status(500).json({ success: false, error: error.message });
         }
