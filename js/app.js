@@ -7,7 +7,7 @@ console.log('App Version: 1.1.3 Loaded');
 // --- 1. API CONFIG ---
 // Change this to your Vercel backend URL after deployment
 // For local dev: 'http://localhost:3000'
-// For production: 'https://your-backend.vercel.app'
+// For production: 'https://your-backend.verAcel.app'
 const API_BASE = 'https://invoice-flow-pradhi.vercel.app';
 
 /**
@@ -266,23 +266,30 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // --- 2. API HELPER ---
+/**
+ * Make API calls to the cloud backend
+ * Automatically handles authentication and error management
+ */
 async function apiFetch(endpoint, options = {}) {
     try {
         const method = (options.method || 'GET').toUpperCase();
         const response = await fetch(`${API_BASE}/api/${endpoint}`, {
+            method,
             ...options,
             headers: {
                 'Content-Type': 'application/json',
                 ...options.headers
             }
         });
+        
         if (!response.ok) {
             const err = await response.json().catch(() => ({}));
             throw new Error(err.error || `HTTP error! status: ${response.status}`);
         }
+        
         const payload = await response.json();
 
-        // Keep all browser sessions in sync after successful mutations.
+        // Keep all browser sessions in sync after successful mutations
         if (method !== 'GET' && method !== 'HEAD' && !options.skipAutoSync) {
             scheduleGlobalSync();
         }
