@@ -83,24 +83,13 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
-const supabase = window.supabase.createClient(
+// Initialize Supabase client as global variable
+window.supabaseClient = window.supabase.createClient(
   "https://pmnevyneypclgikbyuys.supabase.co",
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBtbmV2eW5leXBjbGdpa2J5dXlzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcwMjkwMjQsImV4cCI6MjA5MjYwNTAyNH0.8RfTMKWtVvVd-xNOuvmid5mmlh8ekZQLlwPDoFOtcVQ"
 );
 
-async function testConnection() {
-  const { data, error } = await supabase.from('invoices').select('*');
-  console.log(data, error);
-}
-
-testConnection();
-</script>
-async function testConnection() {
-  const { data, error } = await supabase.from("invoices").select("*");
-  console.log("DATA:", data);
-  console.log("ERROR:", error);
-}
-testConnection();
+console.log('Supabase client initialized globally');
 </script>
 <body>
     <!-- Login Page -->
@@ -803,7 +792,7 @@ testConnection();
                                 <span style="font-size: 0.75rem; font-weight: 700; color: var(--color-neutral-500); text-transform: uppercase; letter-spacing: 1px;">INVOICE NO</span>
                                 <span id="current-invoice-no" style="font-size: 1.25rem; color: var(--color-neutral-700);">INV-2024-00124</span>
                             </div>
-                            <button id="btn-submit-invoice-top" class="btn-primary" style="padding: 12px 24px; font-size: 0.875rem; border-radius: 4px; display: flex; align-items: center; gap: 8px;"><i class="fas fa-paper-plane"></i> Submit Invoice</button>
+                            <button id="btn-submit-invoice-top" class="btn-primary" style="padding: 12px 24px; font-size: 0.875rem; border-radius: 4px; display: flex; align-items: center; gap: 8px;" onclick="saveInvoice()"><i class="fas fa-paper-plane"></i> Submit Invoice</button>
                         </div>
                     </div>
 
@@ -893,7 +882,7 @@ testConnection();
 
                                 <div style="display: flex; justify-content: flex-end; gap: 16px;">
                                     <button style="padding: 12px 24px; background: #e5e7eb; color: var(--color-neutral-800); border: none; border-radius: 4px; font-weight: 600; font-size: 0.875rem; cursor: pointer; transition: background 0.2s;" onmouseover="this.style.background='#d1d5db'" onmouseout="this.style.background='#e5e7eb'">Save Draft</button>
-                                    <button id="btn-submit-invoice-bottom" class="btn-primary" style="padding: 12px 24px; font-weight: 600; font-size: 0.875rem; border-radius: 4px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border: none; cursor: pointer;">Submit Invoice</button>
+                                    <button id="btn-submit-invoice-bottom" class="btn-primary" style="padding: 12px 24px; font-weight: 600; font-size: 0.875rem; border-radius: 4px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border: none; cursor: pointer;" onclick="saveInvoice()">Submit Invoice</button>
                                 </div>
                             </div>
                         </div>

@@ -4,6 +4,17 @@
    ======================================== */
 console.log('App Version: 1.1.3 Loaded');
 
+// --- 0. SUPABASE CLIENT ---
+// Get the global Supabase client initialized in index.html
+// NOTE: window.supabaseClient is set in index.html via CDN
+const supabase = typeof window !== 'undefined' && window.supabaseClient ? window.supabaseClient : null;
+
+if (supabase) {
+  console.log('Supabase client available');
+} else {
+  console.warn('Supabase client not initialized. Make sure index.html loads the Supabase CDN.');
+}
+
 // --- 1. API CONFIG ---
 // Change this to your Vercel backend URL after deployment
 // For local dev: 'http://localhost:3000'
@@ -298,6 +309,83 @@ async function apiFetch(endpoint, options = {}) {
     } catch (error) {
         console.warn(`API Error (${endpoint}):`, error.message);
         return null;
+    }
+}
+
+/**
+ * Save Invoice to Supabase
+ * Reads values from invoice form and inserts into database
+ */
+async function saveInvoice() {
+    try {
+        if (!supabase) {
+            showNotification('Supabase client not initialized', 'error');
+            console.error('Supabase client is not available');
+            return false;
+        }
+
+        // Get invoice data from form
+        const invoiceNoEl = document.getElementById('current-invoice-no');
+        const dateInput = document.getElementById('input-invoice-date');
+        const vendorSelect = document.getElementById('input-vendor-entity');
+        const totalAmountEl = document.getElementById('invoice-total-amount');
+
+        // Validate required fields
+        if (!invoiceNoEl?.textContent || !dateInput?.value || vendorSelect?.selectedIndex <= 0 || !totalAmountEl?.textContent) {
+            showNotification('Please fill all required invoice fields', 'warning');
+            return false;
+        }
+
+        const invoice_no = invoiceNoEl.textContent.trim();
+        const date = dateInput.value;
+        const vendor_name = vendorSelect.options[vendorSelect.selectedIndex].text;
+        const total_amount = parseFloat(totalAmountEl.textContent.replace(/[^0-9.]/g, ''));
+
+        // Prepare invoice data
+        const invoiceData = {
+            invoice_number: invoice_no,
+            vendor_name: vendor_name,
+            date: date,
+            total_amount: total_amount,
+            status: 'pending',
+            created_at: new Date().toISOString()
+        };
+
+        console.log('Saving invoice:', invoiceData);
+
+        // Insert into Supabase
+        const { data, error } = await supabase
+            .from('invoices')
+            .insert([invoiceData])
+            .select();
+
+        if (error) {
+            console.error('Supabase insert error:', error);
+            showNotification(`Error saving invoice: ${error.message}`, 'error');
+            return false;
+        }
+
+        console.log('Invoice saved successfully:', data);
+        showNotification(`Invoice ${invoice_no} saved successfully!`, 'success');
+        
+        // Save to localStorage as well
+        const localInvoices = JSON.parse(localStorage.getItem('invoice_flow_invoices') || '[]');
+        localInvoices.unshift({
+            id: 'INV-' + Date.now(),
+            invoice_number: invoice_no,
+            vendor_name: vendor_name,
+            date: date,
+            total_amount: total_amount,
+            status: 'pending',
+            created_at: new Date().toISOString()
+        });
+        localStorage.setItem('invoice_flow_invoices', JSON.stringify(localInvoices));
+        
+        return true;
+    } catch (error) {
+        console.error('Invoice save error:', error);
+        showNotification(`Error: ${error.message}`, 'error');
+        return false;
     }
 }
 
