@@ -1,8 +1,8 @@
 /* ========================================
    Invoice Flow - App JavaScript
-   Version: 1.1.3
+   Version: 1.1.4
    ======================================== */
-console.log('App Version: 1.1.3 Loaded');
+console.log('App Version: 1.1.4 Loaded');
 
 // --- 0. SUPABASE CLIENT ---
 // Get the global Supabase client initialized in index.html
@@ -165,6 +165,46 @@ document.addEventListener('DOMContentLoaded', () => {
                 .map(normalizeUserRecord)
                 .find(u => normalizeUsername(u.username) === normalizedUsername && normalizeCredential(u.password) === normalizedPassword);
         };
+        const fetchTeamMembersFromSupabase = async () => {
+            if (!supabase) return null;
+            const { data, error } = await supabase
+                .from('team_members')
+                .select('*')
+                .order('created_at', { ascending: false });
+            if (error) throw error;
+            return data;
+        };
+        const loadTeamMembersForLogin = async () => {
+            let teamData = null;
+            try {
+                teamData = await apiFetch('team_members');
+            } catch (err) {
+                console.warn('Failed to fetch team members from API on login', err);
+            }
+
+            if (!Array.isArray(teamData)) {
+                try {
+                    teamData = await fetchTeamMembersFromSupabase();
+                } catch (err) {
+                    console.warn('Failed to fetch team members from Supabase on login', err);
+                }
+            }
+
+            if (Array.isArray(teamData)) {
+                const localTeam = readTeamMembers();
+                const mergedTeam = [...teamData];
+                localTeam.forEach(localMember => {
+                    if (!mergedTeam.some(serverMember => normalizeUsername(serverMember.username) === normalizeUsername(localMember.username))) {
+                        mergedTeam.push(localMember);
+                    }
+                });
+                const normalizedTeam = mergedTeam.map(normalizeUserRecord);
+                localStorage.setItem(STORAGE_KEY_TEAM, JSON.stringify(normalizedTeam));
+                return normalizedTeam;
+            }
+
+            return readTeamMembers().map(normalizeUserRecord);
+        };
         
         // Check Session
         const session = localStorage.getItem('invoice_flow_session');
@@ -211,27 +251,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Authenticating...';
                 btn.disabled = true;
 
-                // Sync latest team members from server first so login works for new users
-                try {
-                    const teamData = await apiFetch('team_members');
-                    if (Array.isArray(teamData)) {
-                        const localTeam = readTeamMembers();
-                        const mergedTeam = [...teamData];
-                        localTeam.forEach(localMember => {
-                            if (!mergedTeam.some(serverMember => normalizeUsername(serverMember.username) === normalizeUsername(localMember.username))) {
-                                mergedTeam.push(localMember);
-                            }
-                        });
-                        localStorage.setItem(STORAGE_KEY_TEAM, JSON.stringify(mergedTeam.map(normalizeUserRecord)));
-                    }
-                } catch (err) {
-                    console.warn('Failed to fetch team members on login', err);
-                }
+                const team = await loadTeamMembersForLogin();
 
                 // Authentication Check (with minor delay for premium feel)
                 setTimeout(() => {
-                    const team = readTeamMembers();
-                    
                     // Check hardcoded admin OR team members
                     let authenticatedUser = null;
                     if (normalizeUsername(username) === 'admin' && password === 'Chellam@1') {
@@ -3306,6 +3329,28 @@ function initAuth() {
         return JSON.parse(sessionStorage.getItem(STORAGE_KEY_SESSION)) || defaultAdmin;
     }
 
+    async function saveTeamMemberToServer(memberData) {
+        const savedByApi = await apiFetch('team_members', {
+            method: 'POST',
+            body: JSON.stringify(memberData)
+        });
+
+        if (savedByApi) return savedByApi;
+
+        if (!supabase) {
+            throw new Error(apiFetch.lastError?.message || 'Team member was not saved to the server');
+        }
+
+        const { data, error } = await supabase
+            .from('team_members')
+            .upsert([memberData], { onConflict: 'username' })
+            .select()
+            .single();
+
+        if (error) throw error;
+        return data;
+    }
+
     window.applyUserPermissions = function(user) {
         console.log("Applying permissions for:", user.username, user.permissions);
         
@@ -3325,8 +3370,9 @@ function initAuth() {
                                  user.permissions.includes(alternateId) ||
                                  (permissionId === 'nav-po' && user.permissions.includes('nav-purchase-orders'))
                              ));
+            const isAdminOnlyItem = permissionId === 'nav-manage' || alternateId === 'nav-manage';
             
-            if (hasAccess) {
+            if (hasAccess && (isSuperAdmin || !isAdminOnlyItem)) {
                 // Use flex for everything as per sidebar.css
                 item.style.display = 'flex';
                 // Item groups need flex-direction column to show sub-items correctly
@@ -3401,7 +3447,11 @@ function initAuth() {
                 const name = document.getElementById('team-name').value.trim();
                 const password = document.getElementById('team-password').value.trim();
                 const checks = formAdd.querySelectorAll('.permission-check:checked');
-                const permissions = Array.from(checks).map(c => c.dataset.id);
+                const selectedPermissions = Array.from(checks).map(c => c.dataset.id);
+                const role = currentEditIndex === 0 ? 'Super Admin' : 'User';
+                const permissions = role === 'Super Admin'
+                    ? selectedPermissions
+                    : selectedPermissions.filter(permission => permission !== 'nav-manage');
 
                 const team = getTeam();
                 const duplicateMember = team.find((member, index) => index !== currentEditIndex && member.username.toLowerCase() === name.toLowerCase());
@@ -3420,41 +3470,42 @@ function initAuth() {
                     id = team[currentEditIndex].id;
                 }
 
-                const memberData = { username: name, password, role: currentEditIndex === 0 ? 'Super Admin' : 'User', permissions };
+                const memberData = { username: name, password, role, permissions };
                 if (id) {
                     memberData.id = id;
                 }
 
+                const originalSubmitText = submitBtn.textContent;
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Saving...';
+
+                let savedMember = null;
+                try {
+                    savedMember = await saveTeamMemberToServer(memberData);
+                } catch (error) {
+                    console.error('Failed to save team member:', error);
+                    if (typeof showNotification === 'function') {
+                        showNotification(`Team member was not saved: ${error.message}`, 'error');
+                    } else {
+                        alert(`Team member was not saved: ${error.message}`);
+                    }
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = originalSubmitText;
+                    return;
+                }
+
                 if (currentEditIndex > -1) {
-                    team[currentEditIndex] = memberData;
+                    team[currentEditIndex] = savedMember;
                 } else {
-                    team.push(memberData);
+                    team.push(savedMember);
                 }
 
                 localStorage.setItem(STORAGE_KEY_TEAM, JSON.stringify(team));
                 modalAdd.style.display = 'none';
                 formAdd.reset();
+                submitBtn.disabled = false;
+                submitBtn.textContent = originalSubmitText;
                 renderTeamList();
-
-                // Sync to Supabase and update local storage with the returned database record (containing the generated ID)
-                const savedMember = await apiFetch('team_members', {
-                    method: 'POST',
-                    body: JSON.stringify(memberData)
-                });
-                
-                if (savedMember) {
-                    const currentTeam = getTeam();
-                    if (currentEditIndex > -1) {
-                        currentTeam[currentEditIndex] = savedMember;
-                    } else {
-                        const idx = currentTeam.findIndex(m => m.username === memberData.username);
-                        if (idx > -1) {
-                            currentTeam[idx] = savedMember;
-                        }
-                    }
-                    localStorage.setItem(STORAGE_KEY_TEAM, JSON.stringify(currentTeam));
-                    renderTeamList();
-                }
                 
                 if (typeof showNotification === 'function') {
                     showNotification(currentEditIndex > -1 ? 'Team Member Updated successfully!' : 'Team Member Added successfully!', 'success');
