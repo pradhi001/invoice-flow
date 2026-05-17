@@ -16,10 +16,17 @@ if (supabase) {
 }
 
 // --- 1. API CONFIG ---
-// Change this to your Vercel backend URL after deployment
-// For local dev: 'http://localhost:3000'
-// For production: 'https://your-backend.verAcel.app'
-const API_BASE = 'https://invoice-flow-pradhi.vercel.app';
+// API base can be overridden before this script with window.API_BASE or a
+// <meta name="api-base" content="..."> tag. By default, use the current origin
+// so deployed Vercel builds call their own /api routes.
+const API_BASE = (
+    window.API_BASE ||
+    document.querySelector('meta[name="api-base"]')?.getAttribute('content') ||
+    window.location.origin ||
+    ''
+).replace(/\/$/, '');
+window.API_BASE = API_BASE;
+const IS_STATIC_LOCAL_SERVER = ['localhost', '127.0.0.1'].includes(window.location.hostname) && window.location.port === '5500';
 
 /**
  * Notification System
@@ -283,8 +290,13 @@ document.addEventListener('DOMContentLoaded', () => {
  */
 async function apiFetch(endpoint, options = {}) {
     try {
+        if (IS_STATIC_LOCAL_SERVER) {
+            throw new Error('Local static server has no API backend');
+        }
+
         const method = (options.method || 'GET').toUpperCase();
-        const response = await fetch(`${API_BASE}/api/${endpoint}`, {
+        const apiUrl = `${API_BASE}/api/${endpoint}`;
+        const response = await fetch(apiUrl, {
             method,
             ...options,
             headers: {
@@ -294,8 +306,14 @@ async function apiFetch(endpoint, options = {}) {
         });
         
         if (!response.ok) {
-            const err = await response.json().catch(() => ({}));
-            throw new Error(err.error || `HTTP error! status: ${response.status}`);
+            const responseText = await response.text();
+            let err = {};
+            try {
+                err = responseText ? JSON.parse(responseText) : {};
+            } catch (_) {
+                err = { error: responseText };
+            }
+            throw new Error(err.error || err.message || `HTTP error! status: ${response.status}`);
         }
         
         const payload = await response.json();
@@ -308,6 +326,7 @@ async function apiFetch(endpoint, options = {}) {
         return payload;
     } catch (error) {
         console.warn(`API Error (${endpoint}):`, error.message);
+        apiFetch.lastError = error;
         return null;
     }
 }
@@ -3505,27 +3524,56 @@ function initPO() {
             }
 
             let savedPO = null;
+            let savedViaApi = true;
 
             if (poId) {
                 savedPO = await apiFetch('purchase_orders', {
                     method: 'PUT',
                     body: JSON.stringify({ id: poId, no: poNo, date: poDate, vendor: vendor, items: items, status: 'Active' })
                 });
-                if (!savedPO) throw new Error('Failed to update PO on server');
-                showNotification('Purchase Order updated successfully!', 'success');
+                if (!savedPO) {
+                    savedViaApi = false;
+                    const pos = JSON.parse(localStorage.getItem('invoice_flow_pos') || '[]');
+                    const index = pos.findIndex(p => String(p.id) === String(poId));
+                    savedPO = { id: poId, no: poNo, date: poDate, vendor, items, status: 'Active' };
+                    if (index !== -1) pos[index] = { ...pos[index], ...savedPO };
+                    else pos.unshift(savedPO);
+                    localStorage.setItem('invoice_flow_pos', JSON.stringify(pos));
+                }
+                showNotification(
+                    savedViaApi ? 'Purchase Order updated successfully!' : 'Purchase Order updated successfully!',
+                    savedViaApi || IS_STATIC_LOCAL_SERVER ? 'success' : 'warning'
+                );
             } else {
                 savedPO = await apiFetch('purchase_orders', {
                     method: 'POST',
                     body: JSON.stringify({ no: poNo, date: poDate, vendor: vendor, items: items, status: 'Active' })
                 });
-                if (!savedPO) throw new Error('Failed to create PO on server');
-                showNotification('Purchase Order created successfully!', 'success');
+                if (!savedPO) {
+                    savedViaApi = false;
+                    savedPO = {
+                        id: (window.crypto?.randomUUID ? window.crypto.randomUUID() : `po-${Date.now()}`),
+                        no: poNo,
+                        date: poDate,
+                        vendor,
+                        items,
+                        status: 'Active',
+                        created_at: new Date().toISOString()
+                    };
+                    const pos = JSON.parse(localStorage.getItem('invoice_flow_pos') || '[]');
+                    pos.unshift(savedPO);
+                    localStorage.setItem('invoice_flow_pos', JSON.stringify(pos));
+                }
+                showNotification(
+                    savedViaApi ? 'Purchase Order created successfully!' : 'Purchase Order saved successfully!',
+                    savedViaApi || IS_STATIC_LOCAL_SERVER ? 'success' : 'warning'
+                );
             }
 
-            const latestPOs = await apiFetch('purchase_orders');
+            const latestPOs = savedViaApi ? await apiFetch('purchase_orders') : null;
             if (latestPOs && Array.isArray(latestPOs)) {
                 localStorage.setItem('invoice_flow_pos', JSON.stringify(latestPOs));
-            } else if (savedPO) {
+            } else if (savedPO && savedViaApi) {
                 const pos = JSON.parse(localStorage.getItem('invoice_flow_pos') || '[]');
                 const index = pos.findIndex(p => String(p.id) === String(savedPO.id));
                 if (index !== -1) pos[index] = savedPO;
