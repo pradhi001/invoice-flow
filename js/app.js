@@ -2020,19 +2020,43 @@ function initDCForm() {
         
         // Update both table bodies
         document.querySelectorAll('.print-dc-table-body').forEach(printTableBody => {
+            // Only show these columns in this order (remove all others)
+            const columns = [
+                { key: 'sno', label: 'S.No', style: 'padding: 8px 6px; border: 1px solid var(--color-neutral-300); text-align: center;' },
+                { key: 'desc', label: 'Description', style: 'padding: 8px 6px; border: 1px solid var(--color-neutral-300); text-align: left;' },
+                { key: 'code', label: 'Item Code', style: 'padding: 8px 6px; border: 1px solid var(--color-neutral-300); text-align: center;' },
+                { key: 'hsn', label: 'HSN', style: 'padding: 8px 6px; border: 1px solid var(--color-neutral-300); text-align: center;' },
+                { key: 'qty', label: 'Qty', style: 'padding: 8px 6px; border: 1px solid var(--color-neutral-300); text-align: center;' },
+                { key: 'remark', label: 'Remark', style: 'padding: 8px 6px; border: 1px solid var(--color-neutral-300); text-align: left;' }
+            ];
+
+            // Update thead dynamically (assumes thead is the previous sibling)
+            const table = printTableBody.closest('table');
+            if (table) {
+                const thead = table.querySelector('thead tr');
+                if (thead) {
+                    thead.innerHTML = columns.map(col => `<th style="${col.style}">${col.label}</th>`).join('');
+                }
+                // Remove any extra columns from tfoot if present
+                const tfoot = table.querySelector('tfoot tr');
+                if (tfoot) {
+                    tfoot.innerHTML = `<td colspan="${columns.length - 1}" style="padding: 8px 12px; text-align: right; border: 1px solid var(--color-neutral-300); color: var(--color-neutral-600); font-weight: 600;">Total Qty:</td><td class="print-dc-total-qty" style="padding: 8px 12px; text-align: center; border: 1px solid var(--color-neutral-300); color: var(--color-neutral-800); font-weight: 600;"></td>`;
+                }
+            }
+
+            // Render rows
             printTableBody.innerHTML = '';
-            items.forEach(item => {
+            items.forEach((item, idx) => {
                 const tr = document.createElement('tr');
                 tr.style.borderBottom = '1px solid #e2e8f0';
-                tr.innerHTML = `
-                    <td style="padding: 6px; border-right: 1px solid #e2e8f0; text-align: center;">${item.sno}</td>
-                    <td style="padding: 6px; border-right: 1px solid #e2e8f0; text-align: left;">${item.desc}</td>
-                    <td style="padding: 6px; border-right: 1px solid #e2e8f0; text-align: center;">${parseFloat(item.qty) % 1 === 0 ? parseFloat(item.qty) : parseFloat(item.qty).toFixed(2)}</td>
-                    <td style="padding: 6px; border-right: 1px solid #e2e8f0; text-align: center;">${item.code}</td>
-                    <td style="padding: 6px; border-right: 1px solid #e2e8f0; text-align: center;">${item.hsn}</td>
-                    <td style="padding: 6px; border-right: 1px solid #e2e8f0; text-align: center;">${parseFloat(item.totalQty) % 1 === 0 ? parseFloat(item.totalQty) : parseFloat(item.totalQty).toFixed(2)}</td>
-                    <td style="padding: 6px; text-align: left;">${item.remark}</td>
-                `;
+                tr.innerHTML = columns.map(col => {
+                    let val = item[col.key];
+                    if (col.key === 'sno') val = idx + 1;
+                    if (col.key === 'qty') {
+                        val = val !== undefined && val !== '' ? (parseFloat(val) % 1 === 0 ? parseFloat(val) : parseFloat(val).toFixed(2)) : '';
+                    }
+                    return `<td style="${col.style}">${val !== undefined && val !== null && String(val).trim() !== '' && String(val).toLowerCase() !== 'null' && String(val).toLowerCase() !== 'undefined' ? val : ''}</td>`;
+                }).join('');
                 printTableBody.appendChild(tr);
             });
 
@@ -2042,15 +2066,7 @@ function initDCForm() {
                 for (let i = items.length; i < minRows; i++) {
                     const tr = document.createElement('tr');
                     tr.style.borderBottom = '1px solid #e2e8f0';
-                    tr.innerHTML = `
-                        <td style="padding: 6px; border-right: 1px solid #e2e8f0; text-align: center; color: transparent;">-</td>
-                        <td style="padding: 6px; border-right: 1px solid #e2e8f0;">&nbsp;</td>
-                        <td style="padding: 6px; border-right: 1px solid #e2e8f0;">&nbsp;</td>
-                        <td style="padding: 6px; border-right: 1px solid #e2e8f0;">&nbsp;</td>
-                        <td style="padding: 6px; border-right: 1px solid #e2e8f0;">&nbsp;</td>
-                        <td style="padding: 6px; border-right: 1px solid #e2e8f0;">&nbsp;</td>
-                        <td style="padding: 6px;">&nbsp;</td>
-                    `;
+                    tr.innerHTML = columns.map(col => `<td style="${col.style} color: transparent;">-</td>`).join('');
                     printTableBody.appendChild(tr);
                 }
             }

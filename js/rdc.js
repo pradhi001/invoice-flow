@@ -213,12 +213,13 @@ function initRDC() {
         if (!rdcListBody) return;
         let rdcs = getRDCs();
         const now = new Date();
-        
-        // Auto-Delete filter
+        const MAX_DAYS = 60;
+        let popupShown = false;
+
+        // Filter out RDCs past 60 days (auto-delete)
         rdcs = rdcs.filter(rdc => {
-            const limit = parseInt(rdc.autoDeleteLimit || '90');
             const diffDays = Math.floor((now - new Date(rdc.date)) / (1000 * 60 * 60 * 24));
-            return diffDays <= limit;
+            return diffDays < MAX_DAYS;
         });
         saveRDCs(rdcs);
 
@@ -228,10 +229,37 @@ function initRDC() {
         }
 
         rdcListBody.innerHTML = rdcs.map((rdc, index) => {
-            const limit = parseInt(rdc.autoDeleteLimit || '90');
-            const diffDays = Math.floor((now - new Date(rdc.date)) / (1000 * 60 * 60 * 24));
-            const daysLeft = limit - diffDays;
+            const createdDate = new Date(rdc.date);
+            const diffDays = Math.floor((now - createdDate) / (1000 * 60 * 60 * 24));
+            const dayNum = diffDays + 1; // Day 1 is creation day
+            const daysLeft = MAX_DAYS - dayNum + 1;
             const statusColor = daysLeft <= 10 ? '#ef4444' : (daysLeft <= 30 ? '#f59e0b' : 'var(--color-primary-600)');
+            const autoDeleteDays = MAX_DAYS;
+
+            // Notification logic
+            if ((dayNum === 50 || dayNum === 55) && !rdc.notifiedDay?.includes(dayNum)) {
+                setTimeout(() => {
+                    alert(`RDC ${rdc.noFull} is pending for ${dayNum} days. Please take action!`);
+                }, 500);
+                rdc.notifiedDay = (rdc.notifiedDay || []).concat(dayNum);
+                saveRDCs(rdcs);
+            }
+
+            // Forced close popup on day 59
+            if (dayNum >= 59 && !popupShown) {
+                setTimeout(() => {
+                    alert(`RDC ${rdc.noFull} has reached day ${dayNum}. You must close this RDC now!`);
+                }, 1000);
+                popupShown = true;
+            }
+
+            // Popup for any RDC older than 45 days
+            if (dayNum > 45 && !popupShown) {
+                setTimeout(() => {
+                    alert(`RDC ${rdc.noFull} is older than 45 days. Please review and close if completed.`);
+                }, 1200);
+                popupShown = true;
+            }
 
             return `
                 <tr style="border-bottom: 1px solid var(--color-neutral-100);">
@@ -239,7 +267,10 @@ function initRDC() {
                     <td style="padding: 16px; font-size: 0.875rem; font-weight: 700; color: var(--color-primary-900);">${rdc.noFull}</td>
                     <td style="padding: 16px; font-size: 0.875rem;">${rdc.customer} (${rdc.dept})</td>
                     <td style="padding: 16px; font-size: 0.875rem;">${rdc.items.length} Items</td>
-                    <td style="padding: 16px; font-size: 0.875rem; font-weight: 700; color: ${statusColor};">${daysLeft > 0 ? `${daysLeft} days left` : 'Expiring today'}</td>
+                    <td style="padding: 16px; font-size: 0.875rem; font-weight: 700; color: ${statusColor};">
+                        ${daysLeft > 0 ? `${daysLeft} days left` : 'Expiring today'}<br>
+                        <span style="font-size: 0.75rem; color: var(--color-neutral-500);">Auto-delete: ${autoDeleteDays} days</span>
+                    </td>
                     <td style="padding: 16px; text-align: right;">
                         <div style="display: flex; justify-content: flex-end; gap: 8px;">
                             <button class="btn-icon btn-view-rdc" data-index="${index}" style="color: var(--color-primary-600); background: none; border: none; cursor: pointer; font-size: 1rem;" title="View"><i class="fas fa-eye"></i></button>

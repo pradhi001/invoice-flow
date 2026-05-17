@@ -1,3 +1,12 @@
+/* Ensure print page allows scrolling */
+#page-print-dc.page.active {
+    overflow-y: auto !important;
+    max-height: 100vh;
+}
+body {
+    overflow-y: auto !important;
+    height: auto !important;
+}
 :root {
     --color-primary-900: #04233d;
     --color-primary-800: #0a3d6b;
