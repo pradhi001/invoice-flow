@@ -1,8 +1,8 @@
 /* ========================================
    Invoice Flow - App JavaScript
-   Version: 1.1.4
+   Version: 1.1.3
    ======================================== */
-console.log('App Version: 1.1.4 Loaded');
+console.log('App Version: 1.1.3 Loaded');
 
 // --- 0. SUPABASE CLIENT ---
 // Get the global Supabase client initialized in index.html
@@ -114,7 +114,7 @@ function formatCurrency(amount) {
         return `${paddedSeq} - ${fy}`;
     }
 
-document.addEventListener('DOMContentLoaded', () => {
+const onAppReady = () => {
     console.log('DOM Content Loaded - Initializing App');
     
     // --- 0. LOGIN SYSTEM ---
@@ -123,127 +123,79 @@ document.addEventListener('DOMContentLoaded', () => {
         const mainApp = document.getElementById('main-app');
         const loginForm = document.getElementById('login-form');
         const userEmailSpan = document.querySelector('.user-name'); // Sidebar name
-        const STORAGE_KEY_TEAM = 'invoice_flow_team_members';
-        const normalizeCredential = value => String(value || '').trim();
-        const normalizeUsername = value => normalizeCredential(value).toLowerCase();
-        const readTeamMembers = () => {
-            try {
-                const team = JSON.parse(localStorage.getItem(STORAGE_KEY_TEAM) || '[]');
-                return Array.isArray(team) ? team : [];
-            } catch (_) {
-                return [];
-            }
-        };
-        const normalizeUserRecord = user => {
-            if (!user) return null;
-            const normalizedUser = {
-                ...user,
-                username: normalizeCredential(user.username),
-                password: normalizeCredential(user.password),
-                role: user.role || (user.user_type === 'admin' ? 'Super Admin' : 'User')
-            };
-            if (!Array.isArray(normalizedUser.permissions)) {
-                normalizedUser.permissions = normalizedUser.permissions ? [normalizedUser.permissions] : [];
-            }
-            if (normalizedUser.role === 'Super Admin' && !normalizedUser.permissions.includes('all')) {
-                normalizedUser.permissions = ['all', ...normalizedUser.permissions];
-            }
-            return normalizedUser;
-        };
-        const saveLoginSession = user => {
-            const normalizedUser = normalizeUserRecord(user);
-            if (!normalizedUser) return;
-            localStorage.setItem('invoice_flow_session', JSON.stringify(normalizedUser));
-            localStorage.setItem('invoice_flow_current_user', JSON.stringify(normalizedUser));
-            sessionStorage.setItem('invoice_flow_current_session', JSON.stringify(normalizedUser));
-            if (window.sessionManager) window.sessionManager.currentUser = normalizedUser;
-        };
-        const findUserByCredentials = (team, username, password) => {
-            const normalizedUsername = normalizeUsername(username);
-            const normalizedPassword = normalizeCredential(password);
-            return team
-                .map(normalizeUserRecord)
-                .find(u => normalizeUsername(u.username) === normalizedUsername && normalizeCredential(u.password) === normalizedPassword);
-        };
-        const fetchTeamMembersFromSupabase = async () => {
-            if (!supabase) return null;
-            const { data, error } = await supabase
-                .from('team_members')
-                .select('*')
-                .order('created_at', { ascending: false });
-            if (error) throw error;
-            return data;
-        };
-        const loadTeamMembersForLogin = async () => {
-            let teamData = null;
-            try {
-                teamData = await apiFetch('team_members');
-            } catch (err) {
-                console.warn('Failed to fetch team members from API on login', err);
-            }
-
-            if (!Array.isArray(teamData)) {
-                try {
-                    teamData = await fetchTeamMembersFromSupabase();
-                } catch (err) {
-                    console.warn('Failed to fetch team members from Supabase on login', err);
-                }
-            }
-
-            if (Array.isArray(teamData)) {
-                const localTeam = readTeamMembers();
-                const mergedTeam = [...teamData];
-                localTeam.forEach(localMember => {
-                    if (!mergedTeam.some(serverMember => normalizeUsername(serverMember.username) === normalizeUsername(localMember.username))) {
-                        mergedTeam.push(localMember);
-                    }
-                });
-                const normalizedTeam = mergedTeam.map(normalizeUserRecord);
-                localStorage.setItem(STORAGE_KEY_TEAM, JSON.stringify(normalizedTeam));
-                return normalizedTeam;
-            }
-
-            return readTeamMembers().map(normalizeUserRecord);
-        };
         
-        // Check Session
-        const session = localStorage.getItem('invoice_flow_session');
-        if (session) {
-            const userData = JSON.parse(session);
-            if (userEmailSpan) userEmailSpan.textContent = userData.name || userData.username;
-            loginPage.classList.remove('active');
-            mainApp.style.display = 'flex';
-            
-            // Apply permissions on reload
-            if (typeof window.applyUserPermissions === 'function') window.applyUserPermissions(userData);
-            
-            syncAllData();
-
-            // Setup auto-sync
-            if (window.syncInterval) clearInterval(window.syncInterval);
-            window.syncInterval = setInterval(() => syncAllData(), 60000);
-            window.addEventListener('focus', () => syncAllData());
-            document.addEventListener('visibilitychange', () => {
-                if (!document.hidden) syncAllData();
-            });
-
-            // Setup manual sync button
-            const btnSync = document.getElementById('btn-sync');
-            if (btnSync) {
-                btnSync.onclick = () => syncAllData(true);
-            }
+        // Check Session - prefer RBAC sessionManager if available
+        if (typeof window.sessionManager !== 'undefined') {
+            (async () => {
+                const restored = await window.sessionManager.init().catch(() => false);
+                if (restored && window.sessionManager.isValid()) {
+                    const userData = window.sessionManager.getUserInfo();
+                    if (userEmailSpan) userEmailSpan.textContent = userData.username || userData.name || '';
+                    loginPage.classList.remove('active');
+                    mainApp.style.display = 'flex';
+                    if (typeof window.applyUserPermissions === 'function') window.applyUserPermissions(window.sessionManager.getUserInfo());
+                    syncAllData();
+                    if (window.syncInterval) clearInterval(window.syncInterval);
+                    window.syncInterval = setInterval(() => syncAllData(), 60000);
+                    window.addEventListener('focus', () => syncAllData());
+                    document.addEventListener('visibilitychange', () => {
+                        if (!document.hidden) syncAllData();
+                    });
+                    const btnSync = document.getElementById('btn-sync');
+                    if (btnSync) btnSync.onclick = () => syncAllData(true);
+                } else {
+                    // fall back to legacy localStorage session if present
+                    const session = localStorage.getItem('invoice_flow_session');
+                    if (session) {
+                        const userData = JSON.parse(session);
+                        if (userEmailSpan) userEmailSpan.textContent = userData.name || userData.username;
+                        loginPage.classList.remove('active');
+                        mainApp.style.display = 'flex';
+                        if (typeof window.applyUserPermissions === 'function') window.applyUserPermissions(userData);
+                        syncAllData();
+                        if (window.syncInterval) clearInterval(window.syncInterval);
+                        window.syncInterval = setInterval(() => syncAllData(), 60000);
+                        window.addEventListener('focus', () => syncAllData());
+                        document.addEventListener('visibilitychange', () => {
+                            if (!document.hidden) syncAllData();
+                        });
+                        const btnSync = document.getElementById('btn-sync');
+                        if (btnSync) btnSync.onclick = () => syncAllData(true);
+                    } else {
+                        loginPage.classList.add('active');
+                        mainApp.style.display = 'none';
+                    }
+                }
+            })();
         } else {
-
-            loginPage.classList.add('active');
-            mainApp.style.display = 'none';
+            const session = localStorage.getItem('invoice_flow_session');
+            if (session) {
+                const userData = JSON.parse(session);
+                if (userEmailSpan) userEmailSpan.textContent = userData.name || userData.username;
+                loginPage.classList.remove('active');
+                mainApp.style.display = 'flex';
+                if (typeof window.applyUserPermissions === 'function') window.applyUserPermissions(userData);
+                syncAllData();
+                if (window.syncInterval) clearInterval(window.syncInterval);
+                window.syncInterval = setInterval(() => syncAllData(), 60000);
+                window.addEventListener('focus', () => syncAllData());
+                document.addEventListener('visibilitychange', () => {
+                    if (!document.hidden) syncAllData();
+                });
+                const btnSync = document.getElementById('btn-sync');
+                if (btnSync) btnSync.onclick = () => syncAllData(true);
+            } else {
+                loginPage.classList.add('active');
+                mainApp.style.display = 'none';
+            }
         }
 
         // Handle Form
         if (loginForm) {
-            loginForm.addEventListener('submit', async (e) => {
+            loginForm.addEventListener('submit', (e) => {
                 e.preventDefault();
-                const username = normalizeCredential(document.getElementById('login-email').value); // Repurposed for "Admin"
-                const password = normalizeCredential(document.getElementById('login-password').value);
+                const username = document.getElementById('login-email').value.trim(); // Repurposed for "Admin"
+                const password = document.getElementById('login-password').value.trim();
                 const btn = loginForm.querySelector('.btn-login');
                 
                 // Show loading state
@@ -251,25 +203,26 @@ document.addEventListener('DOMContentLoaded', () => {
                 btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Authenticating...';
                 btn.disabled = true;
 
-                const team = await loadTeamMembersForLogin();
-
-                // Authentication Check (with minor delay for premium feel)
+                // Authentication Check
                 setTimeout(() => {
+                    const STORAGE_KEY_TEAM = 'invoice_flow_team_members';
+                    const team = JSON.parse(localStorage.getItem(STORAGE_KEY_TEAM) || '[]');
+                    
                     // Check hardcoded admin OR team members
                     let authenticatedUser = null;
-                    if (normalizeUsername(username) === 'admin' && password === 'Chellam@1') {
-                        authenticatedUser = { 
-                            name: 'Admin User', 
-                            role: 'Super Admin', 
+                    if ((username.toLowerCase() === 'admin') && password === 'Chellam@1') {
+                        authenticatedUser = {
+                            name: 'Admin User',
+                            role: 'Super Admin',
                             username: 'Admin',
-                            permissions: ['all'] 
+                            permissions: ['all']
                         };
                     } else {
-                        authenticatedUser = findUserByCredentials(team, username, password);
+                        authenticatedUser = team.find(u => u.username === username && u.password === password);
                     }
 
                     if (authenticatedUser) {
-                        saveLoginSession(authenticatedUser);
+                        localStorage.setItem('invoice_flow_session', JSON.stringify(authenticatedUser));
                         
                         showNotification(`Welcome back, ${authenticatedUser.name || authenticatedUser.username}!`, 'success');
                         
@@ -309,7 +262,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         btn.innerHTML = originalText;
                         btn.disabled = false;
                     }
-                }, 800);
+                }, 1000);
             });
         }
 
@@ -320,9 +273,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.preventDefault();
                 if (confirm('Are you sure you want to logout?')) {
                     localStorage.removeItem('invoice_flow_session');
-                    localStorage.removeItem('invoice_flow_current_user');
-                    sessionStorage.removeItem('invoice_flow_current_session');
-                    if (window.sessionManager) window.sessionManager.logout();
                     showNotification('You have been logged out.', 'info');
                     
                     // Transition back to login
@@ -365,7 +315,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     loadDashboardData().catch(e => console.error('Dashboard error:', e));
     loadInvoicesData().catch(e => console.error('Invoices error:', e));
-});
+};
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', onAppReady);
+} else {
+    onAppReady();
+}
 
 // --- 2. API HELPER ---
 /**
@@ -3329,28 +3285,6 @@ function initAuth() {
         return JSON.parse(sessionStorage.getItem(STORAGE_KEY_SESSION)) || defaultAdmin;
     }
 
-    async function saveTeamMemberToServer(memberData) {
-        const savedByApi = await apiFetch('team_members', {
-            method: 'POST',
-            body: JSON.stringify(memberData)
-        });
-
-        if (savedByApi) return savedByApi;
-
-        if (!supabase) {
-            throw new Error(apiFetch.lastError?.message || 'Team member was not saved to the server');
-        }
-
-        const { data, error } = await supabase
-            .from('team_members')
-            .upsert([memberData], { onConflict: 'username' })
-            .select()
-            .single();
-
-        if (error) throw error;
-        return data;
-    }
-
     window.applyUserPermissions = function(user) {
         console.log("Applying permissions for:", user.username, user.permissions);
         
@@ -3370,9 +3304,8 @@ function initAuth() {
                                  user.permissions.includes(alternateId) ||
                                  (permissionId === 'nav-po' && user.permissions.includes('nav-purchase-orders'))
                              ));
-            const isAdminOnlyItem = permissionId === 'nav-manage' || alternateId === 'nav-manage';
             
-            if (hasAccess && (isSuperAdmin || !isAdminOnlyItem)) {
+            if (hasAccess) {
                 // Use flex for everything as per sidebar.css
                 item.style.display = 'flex';
                 // Item groups need flex-direction column to show sub-items correctly
@@ -3392,28 +3325,6 @@ function initAuth() {
         if (displayName) displayName.textContent = user.name || user.username;
         if (roleLabel) roleLabel.textContent = user.role;
         if (avatar) avatar.textContent = (user.name || user.username).substring(0, 2).toUpperCase();
-
-        // Redirect to first visible/accessible tab if current page is restricted or hidden
-        const activeNavItem = document.querySelector('.sidebar-nav .nav-item.active');
-        let activePageAccessible = false;
-        if (activeNavItem) {
-            const parentGroup = activeNavItem.closest('.nav-item-group');
-            if (!parentGroup || parentGroup.style.display !== 'none') {
-                activePageAccessible = activeNavItem.style.display !== 'none';
-            }
-        }
-        
-        if (!activePageAccessible) {
-            const allNavItems = Array.from(document.querySelectorAll('.sidebar-nav .nav-item[data-page]'));
-            const firstVisibleItem = allNavItems.find(item => {
-                const parentGroup = item.closest('.nav-item-group');
-                if (parentGroup && parentGroup.style.display === 'none') return false;
-                return item.style.display !== 'none';
-            });
-            if (firstVisibleItem) {
-                firstVisibleItem.click();
-            }
-        }
     }
 
     // Expose for login
@@ -3442,76 +3353,34 @@ function initAuth() {
         }
 
         if (formAdd) {
-            formAdd.onsubmit = async (e) => {
+            formAdd.onsubmit = (e) => {
                 e.preventDefault();
-                const name = document.getElementById('team-name').value.trim();
-                const password = document.getElementById('team-password').value.trim();
+                const name = document.getElementById('team-name').value;
+                const password = document.getElementById('team-password').value;
                 const checks = formAdd.querySelectorAll('.permission-check:checked');
-                const selectedPermissions = Array.from(checks).map(c => c.dataset.id);
-                const role = currentEditIndex === 0 ? 'Super Admin' : 'User';
-                const permissions = role === 'Super Admin'
-                    ? selectedPermissions
-                    : selectedPermissions.filter(permission => permission !== 'nav-manage');
+                const permissions = Array.from(checks).map(c => c.dataset.id);
 
                 const team = getTeam();
-                const duplicateMember = team.find((member, index) => index !== currentEditIndex && member.username.toLowerCase() === name.toLowerCase());
-                if (duplicateMember) {
-                    if (typeof showNotification === 'function') {
-                        showNotification('A team member with this user name already exists.', 'error');
-                    } else {
-                        alert('A team member with this user name already exists.');
-                    }
-                    return;
-                }
-                
-                // Get existing member's ID if editing to keep database references stable
-                let id = null;
-                if (currentEditIndex > -1 && team[currentEditIndex]) {
-                    id = team[currentEditIndex].id;
-                }
-
-                const memberData = { username: name, password, role, permissions };
-                if (id) {
-                    memberData.id = id;
-                }
-
-                const originalSubmitText = submitBtn.textContent;
-                submitBtn.disabled = true;
-                submitBtn.textContent = 'Saving...';
-
-                let savedMember = null;
-                try {
-                    savedMember = await saveTeamMemberToServer(memberData);
-                } catch (error) {
-                    console.error('Failed to save team member:', error);
-                    if (typeof showNotification === 'function') {
-                        showNotification(`Team member was not saved: ${error.message}`, 'error');
-                    } else {
-                        alert(`Team member was not saved: ${error.message}`);
-                    }
-                    submitBtn.disabled = false;
-                    submitBtn.textContent = originalSubmitText;
-                    return;
-                }
+                const memberData = { username: name, password, role: currentEditIndex === 0 ? 'Super Admin' : 'User', permissions };
 
                 if (currentEditIndex > -1) {
-                    team[currentEditIndex] = savedMember;
+                    team[currentEditIndex] = memberData;
                 } else {
-                    team.push(savedMember);
+                    team.push(memberData);
                 }
 
                 localStorage.setItem(STORAGE_KEY_TEAM, JSON.stringify(team));
+                
+                // Sync to Supabase
+                apiFetch('team_members', {
+                    method: 'POST',
+                    body: JSON.stringify(memberData)
+                });
+                
                 modalAdd.style.display = 'none';
                 formAdd.reset();
-                submitBtn.disabled = false;
-                submitBtn.textContent = originalSubmitText;
                 renderTeamList();
-                
-                if (typeof showNotification === 'function') {
-                    showNotification(currentEditIndex > -1 ? 'Team Member Updated successfully!' : 'Team Member Added successfully!', 'success');
-                } else {
-                    alert(currentEditIndex > -1 ? 'Team Member Updated!' : 'Team Member Added!');
-                }
+                alert(currentEditIndex > -1 ? 'Team Member Updated!' : 'Team Member Added!');
             };
         }
 
@@ -3552,8 +3421,7 @@ function initAuth() {
                     
                     // Reset and set checks
                     formAdd.querySelectorAll('.permission-check').forEach(check => {
-                        const permissions = Array.isArray(member.permissions) ? member.permissions : [];
-                        check.checked = member.role === 'Super Admin' || permissions.includes(check.dataset.id);
+                        check.checked = member.role === 'Super Admin' || member.permissions.includes(check.dataset.id);
                     });
 
                     modalTitle.textContent = 'Edit Team Member';
@@ -3563,25 +3431,13 @@ function initAuth() {
             });
 
             teamTableBody.querySelectorAll('.btn-delete-team').forEach(btn => {
-                btn.onclick = async () => {
+                btn.onclick = () => {
                     const idx = btn.dataset.index;
                     const team = getTeam();
-                    const memberToDelete = team[idx];
-                    
-                    if (confirm(`Delete user ${memberToDelete.username}?`)) {
+                    if (confirm(`Delete user ${team[idx].username}?`)) {
                         team.splice(idx, 1);
                         localStorage.setItem(STORAGE_KEY_TEAM, JSON.stringify(team));
                         renderTeamList();
-
-                        // Sync delete operation with Supabase backend
-                        if (memberToDelete.id) {
-                            const success = await apiFetch(`team_members?id=${encodeURIComponent(memberToDelete.id)}`, {
-                                method: 'DELETE'
-                            });
-                            if (success && typeof showNotification === 'function') {
-                                showNotification('Team member deleted from server successfully', 'info');
-                            }
-                        }
                     }
                 };
             });
