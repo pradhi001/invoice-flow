@@ -1709,6 +1709,11 @@ console.log('Supabase client initialized globally');
                                 </div>
                             </div>
 
+                            <div class="form-group" style="margin-bottom: 24px; max-width: 420px;">
+                                <label class="form-label" for="dc-departments">Department(s)</label>
+                                <select id="dc-departments" class="form-control" multiple size="4" aria-describedby="dc-departments-help" style="width:100%;padding:12px;background:#f4f5f7;border:1px solid var(--color-neutral-200);border-radius:6px;"></select>
+                                <small id="dc-departments-help" style="display:block;margin-top:6px;color:var(--color-neutral-500);">Select the department(s) covered by this DC. Choose multiple only when the actual work requires it.</small>
+                            </div>
                             <div style="margin-bottom: 24px;">
                                 <h3 style="font-size: 1.125rem; font-weight: 700; color: var(--color-primary-900); margin-bottom: 16px;">Items</h3>
                                 <div style="overflow-x: auto; border: 1px solid var(--color-neutral-200); border-radius: 8px;">
@@ -2777,6 +2782,11 @@ console.log('Supabase client initialized globally');
                     </div>
                 </div>
 
+                <div style="margin-bottom: 24px; max-width: 520px;">
+                    <label for="po-departments" style="display:block;font-size:0.875rem;font-weight:600;color:var(--color-neutral-700);margin-bottom:8px;">Department(s)</label>
+                    <select id="po-departments" multiple size="4" style="width:100%;padding:12px;border:1px solid var(--color-neutral-200);border-radius:8px;background:white;"></select>
+                    <small style="display:block;margin-top:6px;color:var(--color-neutral-500);">Select all departments covered by this purchase order.</small>
+                </div>
                 <div style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
                     <h4 style="margin: 0; font-size: 1rem; color: var(--color-primary-900); font-weight: 700;">Items List</h4>
                     <div style="display: flex; gap: 8px;">

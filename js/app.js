@@ -1660,6 +1660,8 @@ function initDCForm() {
         }
     }
     populateSuppliers();
+    const dcDepartmentsSelect = document.getElementById('dc-departments');
+    populateDepartmentSelector(dcDepartmentsSelect);
 
     const form = document.getElementById('form-add-dc');
     const btnAddRow = document.getElementById('btn-dc-add-row');
@@ -1938,6 +1940,8 @@ function initDCForm() {
         const vendorName = document.getElementById('dc-vendor').value;
         const dcNoInput = document.getElementById('dc-number-input').value.trim();
         const dcNo = dcNoInput || getNextDCNo();
+        const departments = selectedDepartmentNames(dcDepartmentsSelect);
+        if (departments.length === 0) { alert('Please select at least one department for this DC.'); return; }
 
         // 2. Extract Items Data
         const items = [];
@@ -1995,7 +1999,7 @@ function initDCForm() {
                 targetRow.style.borderBottom = '1px solid var(--color-neutral-100)';
             }
 
-            const dcData = { dcDate, vendorName, dcNo: finalDcNo, items, totalQty };
+            const dcData = { dcDate, vendorName, dcNo: finalDcNo, departments, items: items.map(item => ({ ...item, departments })), totalQty };
             targetRow.dataset.dcData = JSON.stringify(dcData);
             
             targetRow.innerHTML = `
@@ -2041,6 +2045,7 @@ function initDCForm() {
                     company_id: customer ? customer.id : null,
                     date: dcData.dcDate,
                     items: dcData.items,
+                    notes: 'Departments: ' + departments.join(', '),
                     status: 'pending'
                 })
             });
@@ -2126,6 +2131,7 @@ function initDCForm() {
 
         setTimeout(() => {
             form.reset();
+        populateDepartmentSelector(dcDepartmentsSelect);
             while (tbody.children.length > 1) tbody.removeChild(tbody.lastChild);
             
             delete form.dataset.editMode;
@@ -3490,6 +3496,35 @@ function initAuth() {
     initPasswordToggles();
 }
 
+
+// Department selector helpers (shared by PO and DC forms).
+function getConfiguredDepartments() {
+    try {
+        const data = JSON.parse(localStorage.getItem('invoice_flow_departments') || '[]');
+        return Array.isArray(data) ? data.map(d => typeof d === 'string' ? { id: d, name: d } : {
+            id: String(d.id ?? d.name ?? d.department ?? ''),
+            name: String(d.name ?? d.department ?? d.title ?? d.id ?? '')
+        }).filter(d => d.id && d.name) : [];
+    } catch (_) { return []; }
+}
+function populateDepartmentSelector(select, selected = []) {
+    if (!select) return;
+    const wanted = new Set((Array.isArray(selected) ? selected : selected ? [selected] : []).map(String));
+    const departments = getConfiguredDepartments();
+    const existing = [...select.options].filter(o => o.value).map(o => ({value:o.value,text:o.textContent}));
+    const source = departments.length ? departments : existing;
+    select.innerHTML = source.length
+        ? source.map(d => {
+            const value = d.value ?? d.id;
+            const name = d.text ?? d.name;
+            return '<option value="' + String(value).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;') + '"' + (wanted.has(String(value)) || wanted.has(String(name)) ? ' selected' : '') + '>' + String(name).replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</option>';
+        }).join('')
+        : '<option value="" disabled>No departments configured — add them in Manage first</option>';
+}
+function selectedDepartmentNames(select) {
+    return select ? [...select.selectedOptions].filter(o => o.value).map(o => o.textContent.trim()) : [];
+}
+
 /* ---- Purchase Orders Logic ---- */
 function initPO() {
     const poTableBody = document.getElementById('po-table-body');
@@ -3503,6 +3538,9 @@ function initPO() {
     const bulkTextArea = document.getElementById('po-bulk-codes');
 
     if (!poTableBody || !poForm || !itemsTableBody) return;
+
+    const poDepartmentsSelect = document.getElementById('po-departments');
+    populateDepartmentSelector(poDepartmentsSelect);
 
     window.renderPOList = function(searchTerm = '') {
         const pos = JSON.parse(localStorage.getItem('invoice_flow_pos') || '[]');
@@ -3558,6 +3596,8 @@ function initPO() {
             const poDate = document.getElementById('po-date').value;
             const vendor = document.getElementById('po-vendor').value;
             const items = [];
+            const departments = selectedDepartmentNames(poDepartmentsSelect);
+            if (departments.length === 0) { alert('Please select at least one department for this PO.'); return; }
             const rows = itemsTableBody.querySelectorAll('tr');
             
             rows.forEach(row => {
@@ -3585,13 +3625,13 @@ function initPO() {
             if (poId) {
                 savedPO = await apiFetch('purchase_orders', {
                     method: 'PUT',
-                    body: JSON.stringify({ id: poId, no: poNo, date: poDate, vendor: vendor, items: items, status: 'Active' })
+                    body: JSON.stringify({ id: poId, no: poNo, date: poDate, vendor: vendor, departments, items: items, status: 'Active' })
                 });
                 if (!savedPO) {
                     savedViaApi = false;
                     const pos = JSON.parse(localStorage.getItem('invoice_flow_pos') || '[]');
                     const index = pos.findIndex(p => String(p.id) === String(poId));
-                    savedPO = { id: poId, no: poNo, date: poDate, vendor, items, status: 'Active' };
+                    savedPO = { id: poId, no: poNo, date: poDate, vendor, departments, items, status: 'Active' };
                     if (index !== -1) pos[index] = { ...pos[index], ...savedPO };
                     else pos.unshift(savedPO);
                     localStorage.setItem('invoice_flow_pos', JSON.stringify(pos));
@@ -3603,7 +3643,7 @@ function initPO() {
             } else {
                 savedPO = await apiFetch('purchase_orders', {
                     method: 'POST',
-                    body: JSON.stringify({ no: poNo, date: poDate, vendor: vendor, items: items, status: 'Active' })
+                    body: JSON.stringify({ no: poNo, date: poDate, vendor: vendor, departments, items: items, status: 'Active' })
                 });
                 if (!savedPO) {
                     savedViaApi = false;
@@ -3612,6 +3652,7 @@ function initPO() {
                         no: poNo,
                         date: poDate,
                         vendor,
+                        departments,
                         items,
                         status: 'Active',
                         created_at: new Date().toISOString()
@@ -3639,6 +3680,7 @@ function initPO() {
 
             // UI Reset
             poForm.reset();
+            populateDepartmentSelector(poDepartmentsSelect);
             document.getElementById('po-id').value = '';
             itemsTableBody.innerHTML = '';
             window.addPORow();
@@ -3659,6 +3701,7 @@ function initPO() {
         btnOpenAdd.onclick = () => {
             document.getElementById('po-id').value = '';
             poForm.reset();
+            populateDepartmentSelector(poDepartmentsSelect);
             itemsTableBody.innerHTML = '';
             addPORow();
             document.getElementById('modal-add-po').style.display = 'flex';
@@ -3785,6 +3828,7 @@ function initPO() {
         if (!modal || !form || !poIdInput || !itemsBody) return;
 
         form.reset();
+        populateDepartmentSelector(poDepartmentsSelect);
         poIdInput.value = '';
         submitBtn.textContent = 'ADD PO';
         modal.querySelector('h3').textContent = 'ADD PO';
@@ -3814,6 +3858,7 @@ function initPO() {
         poNoInput.value = po.no;
         poDateInput.value = po.date || '';
         poVendorInput.value = po.vendor || '';
+        populateDepartmentSelector(poDepartmentsSelect, po.departments || []);
         submitBtn.textContent = 'UPDATE PO';
         modal.querySelector('h3').textContent = 'EDIT PO';
 

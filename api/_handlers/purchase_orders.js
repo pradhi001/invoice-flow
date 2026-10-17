@@ -20,6 +20,7 @@ module.exports = async (req, res) => {
                 no: body.no,
                 date: body.date,
                 vendor: body.vendor,
+                departments: body.departments || [],
                 items: body.items,
                 status: body.status || 'Active'
             };
