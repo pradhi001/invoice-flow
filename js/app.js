@@ -1,13 +1,17 @@
 /* ========================================
    Invoice Flow - App JavaScript
-   Version: 1.1.3
+   Version: 1.2.0
    ======================================== */
-console.log('App Version: 1.1.3 Loaded');
+console.log('App Version: 1.2.0 Loaded');
 
 // --- 0. SUPABASE CLIENT ---
 // Get the global Supabase client initialized in index.html
 // NOTE: window.supabaseClient is set in index.html via CDN
 const supabase = typeof window !== 'undefined' && window.supabaseClient ? window.supabaseClient : null;
+const sharedStorageReady = import('./sharedStorage.js').catch(error => {
+    console.error('Shared data module failed to load:', error);
+    return null;
+});
 
 if (supabase) {
   console.log('Supabase client available');
@@ -116,6 +120,33 @@ function formatCurrency(amount) {
 
 const onAppReady = () => {
     console.log('DOM Content Loaded - Initializing App');
+    let appModulesInitialized = false;
+
+    const initAppModules = () => {
+        if (appModulesInitialized) return;
+        const initFunctions = [
+            { name: 'DC', fn: typeof initDCForm !== 'undefined' ? initDCForm : null },
+            { name: 'Navigation', fn: typeof initNavigation !== 'undefined' ? initNavigation : null },
+            { name: 'Search', fn: typeof initSearch !== 'undefined' ? initSearch : null },
+            { name: 'Animations', fn: typeof initAnimations !== 'undefined' ? initAnimations : null },
+            { name: 'InvoiceTabs', fn: typeof initInvoiceTabs !== 'undefined' ? initInvoiceTabs : null },
+            { name: 'LoadingSheets', fn: typeof initLoadingSheets !== 'undefined' ? initLoadingSheets : null },
+            { name: 'Inventory', fn: typeof initInventory !== 'undefined' ? initInventory : null },
+            { name: 'Dept', fn: typeof initDept !== 'undefined' ? initDept : null },
+            { name: 'Products', fn: typeof initProducts !== 'undefined' ? initProducts : null },
+            { name: 'Suppliers', fn: typeof initSupplierForm !== 'undefined' ? initSupplierForm : null },
+            { name: 'RDC', fn: typeof initRDC !== 'undefined' ? initRDC : null },
+            { name: 'ClosedItems', fn: typeof initClosedItems !== 'undefined' ? initClosedItems : null },
+            { name: 'PO', fn: typeof initPO !== 'undefined' ? initPO : null }
+        ];
+        initFunctions.forEach(module => {
+            try { if (module.fn) module.fn(); }
+            catch (error) { console.error(`Error in ${module.name}:`, error); }
+        });
+        appModulesInitialized = true;
+        if (typeof window.renderDCList === 'function') window.renderDCList();
+        if (typeof window.renderMainLoadingTable === 'function') window.renderMainLoadingTable();
+    };
     
     // --- 0. LOGIN SYSTEM ---
     const initLogin = () => {
@@ -129,8 +160,11 @@ const onAppReady = () => {
             mainApp.style.display = 'none';
         };
         const showApp = async user => {
+            await sharedStorageReady;
             if (!user || !window.sharedStorageSync) throw new Error('Shared data setup is unavailable. Please reload the page.');
             await window.sharedStorageSync.initialize();
+            if (!appModulesInitialized) initAuth();
+            initAppModules();
             const appUser = {
                 id: user.id,
                 name: user.user_metadata?.full_name || user.email,
@@ -141,6 +175,8 @@ const onAppReady = () => {
                     : ['all']
             };
             if (userEmailSpan) userEmailSpan.textContent = appUser.name || appUser.username;
+            const profileAvatar = document.querySelector('.user-profile img');
+            if (profileAvatar) { profileAvatar.alt = appUser.name || 'User profile'; profileAvatar.hidden = true; }
             loginPage.classList.remove('active');
             mainApp.style.display = 'flex';
             if (typeof window.applyUserPermissions === 'function') window.applyUserPermissions(appUser);
@@ -148,6 +184,8 @@ const onAppReady = () => {
             if (typeof updateAllPrintHeaders === 'function') updateAllPrintHeaders();
             if (typeof window.renderDashboardStats === 'function') window.renderDashboardStats();
             await syncAllData();
+            await loadDashboardData();
+            await loadInvoicesData();
             if (window.syncInterval) clearInterval(window.syncInterval);
             window.syncInterval = setInterval(() => syncAllData(), 60000);
             const btnSync = document.getElementById('btn-sync');
@@ -188,6 +226,24 @@ const onAppReady = () => {
             }
         });
 
+        const forgotPasswordLink = Array.from(document.querySelectorAll('#login-page a'))
+            .find(link => link.textContent.trim().toLowerCase() === 'forgot password?');
+        if (forgotPasswordLink) forgotPasswordLink.addEventListener('click', async event => {
+            event.preventDefault();
+            const email = document.getElementById('login-email')?.value.trim();
+            if (!email) {
+                showNotification('Enter your account email first, then select Forgot Password.', 'warning');
+                return;
+            }
+            try {
+                const { error } = await client.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
+                if (error) throw error;
+                showNotification('If the account exists, password reset instructions have been sent.', 'success');
+            } catch (error) {
+                showNotification(error.message || 'Unable to send password reset instructions.', 'error');
+            }
+        });
+
         const logoutBtn = document.getElementById('nav-logout');
         if (logoutBtn) {
             logoutBtn.addEventListener('click', async event => {
@@ -208,30 +264,8 @@ const onAppReady = () => {
 
     initLogin();
 
-    if (typeof window.renderDCList === 'function') window.renderDCList();
-    const initFunctions = [
-        { name: 'DC', fn: typeof initDCForm !== 'undefined' ? initDCForm : null },
-        { name: 'Navigation', fn: typeof initNavigation !== 'undefined' ? initNavigation : null },
-        { name: 'Search', fn: typeof initSearch !== 'undefined' ? initSearch : null },
-        { name: 'Animations', fn: typeof initAnimations !== 'undefined' ? initAnimations : null },
-        { name: 'InvoiceTabs', fn: typeof initInvoiceTabs !== 'undefined' ? initInvoiceTabs : null },
-        { name: 'LoadingSheets', fn: typeof initLoadingSheets !== 'undefined' ? initLoadingSheets : null },
-        { name: 'Inventory', fn: typeof initInventory !== 'undefined' ? initInventory : null },
-        { name: 'Dept', fn: typeof initDept !== 'undefined' ? initDept : null },
-        { name: 'Products', fn: typeof initProducts !== 'undefined' ? initProducts : null },
-        { name: 'Suppliers', fn: typeof initSupplierForm !== 'undefined' ? initSupplierForm : null },
-        { name: 'RDC', fn: typeof initRDC !== 'undefined' ? initRDC : null },
-        { name: 'ClosedItems', fn: typeof initClosedItems !== 'undefined' ? initClosedItems : null },
-        { name: 'PO', fn: typeof initPO !== 'undefined' ? initPO : null },
-        { name: 'Auth', fn: typeof initAuth !== 'undefined' ? initAuth : null }
-    ];
-
-    initFunctions.forEach(m => {
-        try { if (m.fn) m.fn(); } catch (e) { console.error(`Error in ${m.name}:`, e); }
-    });
-
-    loadDashboardData().catch(e => console.error('Dashboard error:', e));
-    loadInvoicesData().catch(e => console.error('Invoices error:', e));
+    // Business modules initialize only after authentication and the local-data
+    // backup/import decision so empty devices are not populated with demo rows.
 };
 
 if (document.readyState === 'loading') {
@@ -396,52 +430,97 @@ async function syncAllData(isManual = false) {
 
 // --- 3. DASHBOARD DATA ---
 async function loadDashboardData() {
-    const data = await apiFetch('dashboard');
-    if (!data) return; // Keep static HTML if API unavailable
+    const readList = key => {
+        try {
+            const value = JSON.parse(localStorage.getItem(key) || '[]');
+            return Array.isArray(value) ? value : [];
+        } catch (_) { return []; }
+    };
+    const invoices = readList('invoice_flow_invoices');
+    const challans = readList('invoice_flow_dcs');
+    const amountOf = invoice => Number(invoice.amount ?? invoice.total_amount ?? invoice.totalAmount ?? 0) || 0;
+    const unpaid = invoices.filter(invoice => !['paid', 'cancelled', 'archived'].includes(String(invoice.status || '').toLowerCase()));
+    const outstanding = unpaid.reduce((sum, invoice) => sum + amountOf(invoice), 0);
+    const dueCount = unpaid.filter(invoice => {
+        if (String(invoice.status || '').toLowerCase() === 'overdue') return true;
+        const dueDate = invoice.due_date ? new Date(invoice.due_date) : null;
+        return dueDate && !Number.isNaN(dueDate.getTime()) && dueDate < new Date();
+    }).length;
 
-    // Update stat cards
     const balanceEl = document.querySelector('#stat-balance .stat-value');
-    if (balanceEl) balanceEl.textContent = formatCurrency(data.stats.total_outstanding);
+    if (balanceEl) balanceEl.textContent = formatCurrency(outstanding);
+    const balanceNote = document.querySelector('#stat-balance .stat-change');
+    if (balanceNote) balanceNote.textContent = `${unpaid.length} unpaid invoice${unpaid.length === 1 ? '' : 's'}`;
 
     const challansEl = document.querySelector('#stat-challans .stat-value');
-    if (challansEl) challansEl.textContent = data.stats.pending_challans;
+    if (challansEl) challansEl.textContent = String(challans.length);
+    const challanNote = document.querySelector('#stat-challans .progress-label');
+    if (challanNote) challanNote.textContent = `${challans.length} saved delivery challan${challans.length === 1 ? '' : 's'}`;
 
     const invoicesEl = document.querySelector('#stat-invoices .stat-value');
-    if (invoicesEl) invoicesEl.textContent = data.stats.active_invoices;
+    if (invoicesEl) invoicesEl.textContent = String(unpaid.length);
+    const dueNote = document.querySelector('#stat-invoices .invoice-due-label');
+    if (dueNote) dueNote.textContent = `${dueCount} DUE`;
+    const fleetCard = document.getElementById('fleet-card');
+    if (fleetCard) fleetCard.style.display = 'none';
 
-    // Update transactions table
-    if (data.recentTransactions && data.recentTransactions.length > 0) {
-        renderTransactions(data.recentTransactions);
-    }
+    const transactions = [
+        ...invoices.map(invoice => ({
+            reference: invoice.invoice_number || invoice.invoice_no || invoice.id || 'Invoice',
+            date: invoice.date || invoice.created_at,
+            amount: amountOf(invoice),
+            status: invoice.status || 'pending',
+            companies: { name: invoice.companies?.name || invoice.vendor_name || invoice.supplier_name || 'Supplier' }
+        })),
+        ...challans.map(challan => ({
+            reference: challan.dcNo || challan.challan_number || challan.id || 'Delivery challan',
+            date: challan.dcDate || challan.date,
+            amount: challan.amount || 0,
+            status: challan.status || 'pending',
+            companies: { name: challan.vendorName || challan.companies?.name || 'Supplier' }
+        }))
+    ].sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0)).slice(0, 5);
+    renderTransactions(transactions);
 }
 
 function renderTransactions(transactions) {
     const tbody = document.querySelector('#transactions-table tbody');
     if (!tbody) return;
+    if (!transactions.length) {
+        tbody.innerHTML = '<tr><td colspan="5" style="padding:24px;text-align:center;color:#64748b">No transactions yet. Records saved in Invoice Flow will appear here.</td></tr>';
+        return;
+    }
 
     tbody.innerHTML = transactions.map(tx => {
         const company = tx.companies || {};
         const initials = company.initials || '??';
         const color = company.avatar_color || '#0a3d6b';
         const name = company.name || 'Unknown';
-        const dateStr = new Date(tx.date).toLocaleDateString('en-US', {
+        const parsedDate = new Date(tx.date);
+        const dateStr = Number.isNaN(parsedDate.getTime()) ? '—' : parsedDate.toLocaleDateString('en-US', {
             month: 'short', day: 'numeric', year: 'numeric'
         });
 
         return `
         <tr>
-            <td><span class="ref-code">${tx.reference}</span></td>
+            <td><span class="ref-code">${escapeHTML(tx.reference)}</span></td>
             <td>
                 <div class="entity-cell">
                     <span class="entity-avatar" style="background: ${color};">${initials}</span>
-                    <span class="entity-name">${name}</span>
+                    <span class="entity-name">${escapeHTML(name)}</span>
                 </div>
             </td>
             <td>${dateStr}</td>
             <td class="amount-cell">${formatCurrency(tx.amount)}</td>
-            <td><span class="status-badge status-${tx.status}">${tx.status.toUpperCase()}</span></td>
+            <td><span class="status-badge status-${escapeHTML(tx.status)}">${escapeHTML(String(tx.status).toUpperCase())}</span></td>
         </tr>`;
     }).join('');
+}
+
+function escapeHTML(value) {
+    return String(value ?? '').replace(/[&<>"']/g, character => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[character]);
 }
 
 // --- 4. INVOICES DATA ---
@@ -453,15 +532,19 @@ async function loadInvoicesData(page = 1, status = 'all') {
     let data = await apiFetch(params);
     
     if (!data) {
-        // Fallback to localStorage
         const localInvoices = JSON.parse(localStorage.getItem('invoice_flow_invoices') || '[]');
+        const filteredInvoices = status === 'all' ? localInvoices : localInvoices.filter(invoice =>
+            String(invoice.status || '').toLowerCase() === status.toLowerCase()
+        );
+        const limit = 10;
+        const pageInvoices = filteredInvoices.slice((page - 1) * limit, page * limit);
         const stats = {
-            totalRevenue: localInvoices.reduce((sum, inv) => sum + (inv.amount || 0), 0),
-            outstanding: localInvoices.filter(inv => inv.status !== 'paid').reduce((sum, inv) => sum + (inv.amount || 0), 0),
+            totalRevenue: localInvoices.reduce((sum, inv) => sum + (Number(inv.amount ?? inv.total_amount) || 0), 0),
+            outstanding: localInvoices.filter(inv => !['paid', 'cancelled', 'archived'].includes(String(inv.status || '').toLowerCase())).reduce((sum, inv) => sum + (Number(inv.amount ?? inv.total_amount) || 0), 0),
             overdueCount: localInvoices.filter(inv => inv.status === 'overdue').length,
             pendingApproval: localInvoices.filter(inv => inv.status === 'draft').length
         };
-        data = { success: true, invoices: localInvoices, stats, total: localInvoices.length, page: 1, limit: 10 };
+        data = { success: true, invoices: pageInvoices, stats, total: filteredInvoices.length, page, limit };
     }
 
     currentPage = data.page;
@@ -494,12 +577,14 @@ function renderInvoices(invoices) {
         const company = inv.companies || {};
         const initials = company.initials || '??';
         const color = company.avatar_color || '#0a3d6b';
-        const name = company.name || 'Unknown';
+        const name = company.name || inv.vendor_name || inv.supplier_name || 'Unknown';
         const email = company.email || '';
-        const createdStr = new Date(inv.created_at).toLocaleDateString('en-US', {
+        const createdDate = new Date(inv.created_at || inv.date);
+        const dueDate = new Date(inv.due_date || inv.date);
+        const createdStr = Number.isNaN(createdDate.getTime()) ? '—' : createdDate.toLocaleDateString('en-US', {
             month: 'short', day: 'numeric', year: 'numeric'
         });
-        const dueStr = new Date(inv.due_date).toLocaleDateString('en-US', {
+        const dueStr = Number.isNaN(dueDate.getTime()) ? '—' : dueDate.toLocaleDateString('en-US', {
             month: 'short', day: 'numeric', year: 'numeric'
         });
         const isOverdue = inv.status === 'overdue';
@@ -508,27 +593,27 @@ function renderInvoices(invoices) {
         return `
         <tr data-id="${inv.id}">
             <td>
-                <span class="inv-number">${inv.invoice_number}</span>
+                <span class="inv-number">${escapeHTML(inv.invoice_number || inv.invoice_no || inv.id || 'Invoice')}</span>
                 <span class="inv-created">Created ${createdStr}</span>
             </td>
             <td>
                 <div class="entity-cell">
                     <span class="entity-avatar" style="background:${color};">${initials}</span>
                     <div class="entity-info">
-                        <span class="entity-name">${name}</span>
-                        <span class="entity-email">${email}</span>
+                        <span class="entity-name">${escapeHTML(name)}</span>
+                        <span class="entity-email">${escapeHTML(email)}</span>
                     </div>
                 </div>
             </td>
             <td>
                 ${hasPartial ? `
                 <div class="inv-amount-detail">
-                    <span class="amount-cell">${formatCurrency(inv.amount)}</span>
+                    <span class="amount-cell">${formatCurrency(inv.amount ?? inv.total_amount ?? 0)}</span>
                     <span class="inv-paid-note">Paid: ${formatCurrency(inv.paid_amount)}</span>
-                </div>` : `<span class="amount-cell">${formatCurrency(inv.amount)}</span>`}
+                </div>` : `<span class="amount-cell">${formatCurrency(inv.amount ?? inv.total_amount ?? 0)}</span>`}
             </td>
             <td class="${isOverdue ? 'inv-date-overdue' : ''}">${dueStr}</td>
-            <td><span class="status-badge status-${inv.status}">${inv.status.toUpperCase()}</span></td>
+            <td><span class="status-badge status-${escapeHTML(inv.status || 'pending')}">${escapeHTML(String(inv.status || 'pending').toUpperCase())}</span></td>
             <td>
                 <div class="inv-actions">
                     <button class="inv-action-btn" title="View"><i class="fas fa-eye"></i></button>
@@ -2103,19 +2188,11 @@ function initLoadingSheets() {
             return;
         }
 
-        // Inventory data (matching seed data in loadInventoryData)
-        const inventoryItems = [
-            { rate: '2.80', code: '73181000L01140' },
-            { rate: '25.00', code: '73181000L01150' },
-            { rate: '5.00', code: '73181000L01152' },
-            { rate: '10.00', code: '73181000L01149' },
-            { rate: '16.00', code: '73181000L01142' },
-            { rate: '2.00', code: '73181000L01183' },
-            { rate: '2.80', code: '73181000L01161' },
-            { rate: '25.00', code: '73181000L01165' },
-            { rate: '16.00', code: '73181000L01158' },
-            { rate: '5.00', code: '73181000L01156' }
-        ];
+        let inventoryItems = [];
+        try {
+            const stored = JSON.parse(localStorage.getItem('invoice_flow_inventory') || '[]');
+            if (Array.isArray(stored)) inventoryItems = stored;
+        } catch (_) { inventoryItems = []; }
 
         const matches = inventoryItems.filter(item => parseFloat(item.rate) === rate);
 
@@ -2327,6 +2404,10 @@ function initLoadingSheets() {
 
     window.renderMainLoadingTable = function() {
         if (!loadingTableBody) return;
+        if (!window.allLoadingSheets.length) {
+            loadingTableBody.innerHTML = '<tr><td colspan="8" style="padding:24px;text-align:center;color:#64748b">No loading sheets yet.</td></tr>';
+            return;
+        }
         
         loadingTableBody.innerHTML = window.allLoadingSheets.map((sheet, index) => `
             <tr style="border-bottom: 1px solid var(--color-neutral-100); transition: background 0.2s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">
@@ -2616,21 +2697,6 @@ function initInventory() {
             const dept = document.getElementById('item-dept-input').value;
             const status = document.getElementById('item-status-input').value;
 
-            const savedItem = await apiFetch('inventory', {
-                method: 'POST',
-                body: JSON.stringify({
-                    sku: code,
-                    item_name: code,
-                    unit_price: parseFloat(rate) || 0,
-                    category: dept || '',
-                    quantity: 0
-                })
-            });
-            if (!savedItem) {
-                if (typeof showNotification === 'function') showNotification('Failed to save item to server', 'error');
-                return;
-            }
-            
             const newItem = { rate, code, dept, status };
             const inventory = JSON.parse(localStorage.getItem('invoice_flow_inventory') || '[]');
             inventory.unshift(newItem);
@@ -2680,23 +2746,12 @@ async function loadInventoryData() {
     const tbody = document.getElementById('inventory-table-body');
     if (!tbody) return;
 
-    let inventory = JSON.parse(localStorage.getItem('invoice_flow_inventory') || '[]');
-    
-    // Seed data if empty
+    const inventory = JSON.parse(localStorage.getItem('invoice_flow_inventory') || '[]');
     if (inventory.length === 0) {
-        inventory = [
-            { rate: '2.80', code: '73181000L01140', dept: 'Production', status: 'Inactive' },
-            { rate: '25.00', code: '73181000L01150', dept: 'Inventory', status: 'Active' },
-            { rate: '5.00', code: '73181000L01152', dept: 'Production', status: 'Inactive' },
-            { rate: '10.00', code: '73181000L01149', dept: 'Sales', status: 'Active' },
-            { rate: '16.00', code: '73181000L01142', dept: 'Production', status: 'Active' },
-            { rate: '2.00', code: '73181000L01183', dept: 'Packaging', status: 'Inactive' },
-            { rate: '2.80', code: '73181000L01161', dept: 'Production', status: 'Active' },
-            { rate: '25.00', code: '73181000L01165', dept: 'Inventory', status: 'Inactive' },
-            { rate: '16.00', code: '73181000L01158', dept: 'Quality Control', status: 'Inactive' },
-            { rate: '5.00', code: '73181000L01156', dept: 'Production', status: 'Active' }
-        ];
-        localStorage.setItem('invoice_flow_inventory', JSON.stringify(inventory));
+        tbody.innerHTML = '<tr><td colspan="5" style="padding:24px;text-align:center;color:#64748b">No inventory items yet.</td></tr>';
+        const info = document.getElementById('inventory-pagination-info');
+        if (info) info.textContent = 'Showing 0 entries';
+        return;
     }
 
     tbody.innerHTML = inventory.map(item => `
@@ -2780,18 +2835,6 @@ function initDept() {
             } else {
                 const id = 'D-' + Math.floor(100 + Math.random() * 900);
                 depts.unshift({ id, name, employees: 0, status: 'Active' });
-            }
-            
-            const deptToSync = depts.find(d => d.name === name);
-            if (deptToSync) {
-                const savedDept = await apiFetch('departments', {
-                    method: 'POST',
-                    body: JSON.stringify(deptToSync)
-                });
-                if (!savedDept) {
-                    if (typeof showNotification === 'function') showNotification('Failed to save department to server', 'error');
-                    return;
-                }
             }
             
             localStorage.setItem('invoice_flow_departments', JSON.stringify(depts));
@@ -2889,13 +2932,8 @@ function initProducts() {
         const products = JSON.parse(localStorage.getItem('invoice_flow_products') || '[]');
         
         if (products.length === 0) {
-            const seedProducts = [
-                { name: 'Hex Bolt M10 x 50', code: 'HB-M10-50', hsn: '7318', rate: 14.50 },
-                { name: 'Self Tapping Screw', code: 'STS-08', hsn: '7318', rate: 2.80 },
-                { name: 'Nylon Insert Lock Nut', code: 'NLN-M10', hsn: '7318', rate: 5.00 }
-            ];
-            localStorage.setItem('invoice_flow_products', JSON.stringify(seedProducts));
-            return renderProducts();
+            tbody.innerHTML = '<tr><td colspan="5" style="padding:24px;text-align:center;color:#64748b">No products yet.</td></tr>';
+            return;
         }
 
         tbody.innerHTML = products.map((p, index) => `
@@ -2925,15 +2963,6 @@ function initProducts() {
             const rate = document.getElementById('product-rate-input').value;
 
             const product = { name, code, hsn, rate: parseFloat(rate) };
-            const savedProduct = await apiFetch('products', { 
-                method: 'POST', 
-                body: JSON.stringify(product) 
-            });
-            if (!savedProduct) {
-                if (typeof showNotification === 'function') showNotification('Failed to save product to server', 'error');
-                return;
-            }
-
             const products = JSON.parse(localStorage.getItem('invoice_flow_products') || '[]');
             products.unshift(product);
             localStorage.setItem('invoice_flow_products', JSON.stringify(products));
@@ -3054,6 +3083,19 @@ function initAuth() {
     if (teamButton) { teamButton.disabled = true; teamButton.title = 'Create accounts in Supabase Auth'; }
     const teamBody = document.getElementById('team-table-body');
     if (teamBody) teamBody.innerHTML = '<tr><td colspan="5" style="padding:16px">User accounts are managed securely in Supabase Auth.</td></tr>';
+    document.querySelectorAll('.password-toggle-btn').forEach(button => {
+        button.addEventListener('click', () => {
+            const input = document.getElementById(button.dataset.target);
+            const icon = button.querySelector('i');
+            if (!input) return;
+            const show = input.type === 'password';
+            input.type = show ? 'text' : 'password';
+            if (icon) {
+                icon.classList.toggle('fa-eye', !show);
+                icon.classList.toggle('fa-eye-slash', show);
+            }
+        });
+    });
 }
 
 /* ---- Purchase Orders Logic ---- */
@@ -3497,14 +3539,6 @@ function initCompanyProfile() {
                 currency: document.getElementById('settings-currency').value,
                 logo: logoPreview.src || ''
             };
-            const savedProfile = await apiFetch('app_settings', {
-                method: 'POST',
-                body: JSON.stringify({ key: 'company_profile', value: updatedProfile })
-            });
-            if (!savedProfile) {
-                alert('Failed to update company profile on server.');
-                return;
-            }
             localStorage.setItem(STORAGE_KEY_PROFILE, JSON.stringify(updatedProfile));
             updateAppLogos(updatedProfile.logo);
             updateAllPrintHeaders();
