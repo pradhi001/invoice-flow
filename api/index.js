@@ -1,4 +1,5 @@
 const { getCorsHeaders, getSecurityHeaders, validateCloudEnvironment } = require('./config');
+const { authenticateRequest } = require('./auth');
 
 // Validate cloud environment on startup
 if (process.env.NODE_ENV === 'production') {
@@ -12,6 +13,7 @@ if (process.env.NODE_ENV === 'production') {
 
 const handlers = {
     ping: () => require('./_handlers/ping'),
+    shared_data: () => require('./_handlers/shared_data'),
     app_settings: () => require('./_handlers/app_settings'),
     companies: () => require('./_handlers/companies'),
     dashboard: () => require('./_handlers/dashboard'),
@@ -28,7 +30,7 @@ const handlers = {
 
 module.exports = async (req, res) => {
     // Set CORS headers
-    const corsHeaders = getCorsHeaders();
+    const corsHeaders = getCorsHeaders(req.headers.origin || '');
     Object.entries(corsHeaders).forEach(([key, value]) => {
         res.setHeader(key, value);
     });
@@ -63,6 +65,7 @@ module.exports = async (req, res) => {
                 endpoint: handlerName
             });
         }
+        if (handlerName !== 'ping' && !(await authenticateRequest(req, res))) return;
         const handler = loadHandler();
         if (typeof handler !== 'function') {
             return res.status(500).json({ error: `Handler ${handlerName} is not a function` });
@@ -72,8 +75,8 @@ module.exports = async (req, res) => {
         console.error(`Router error for ${handlerName}:`, error);
         return res.status(500).json({
             error: 'Router execution failed',
-            endpoint: handlerName,
-            details: error.message
+            endpoint: handlerName
         });
     }
 };
+
