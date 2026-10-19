@@ -122,168 +122,85 @@ const onAppReady = () => {
         const loginPage = document.getElementById('login-page');
         const mainApp = document.getElementById('main-app');
         const loginForm = document.getElementById('login-form');
-        const userEmailSpan = document.querySelector('.user-name'); // Sidebar name
-        
-        // Check Session - prefer RBAC sessionManager if available
-        if (typeof window.sessionManager !== 'undefined') {
-            (async () => {
-                const restored = await window.sessionManager.init().catch(() => false);
-                if (restored && window.sessionManager.isValid()) {
-                    const userData = window.sessionManager.getUserInfo();
-                    if (userEmailSpan) userEmailSpan.textContent = userData.username || userData.name || '';
-                    loginPage.classList.remove('active');
-                    mainApp.style.display = 'flex';
-                    if (typeof window.applyUserPermissions === 'function') window.applyUserPermissions(window.sessionManager.getUserInfo());
-                    syncAllData();
-                    if (window.syncInterval) clearInterval(window.syncInterval);
-                    window.syncInterval = setInterval(() => syncAllData(), 60000);
-                    window.addEventListener('focus', () => syncAllData());
-                    document.addEventListener('visibilitychange', () => {
-                        if (!document.hidden) syncAllData();
-                    });
-                    const btnSync = document.getElementById('btn-sync');
-                    if (btnSync) btnSync.onclick = () => syncAllData(true);
-                } else {
-                    // fall back to legacy localStorage session if present
-                    const session = localStorage.getItem('invoice_flow_session');
-                    if (session) {
-                        const userData = JSON.parse(session);
-                        if (userEmailSpan) userEmailSpan.textContent = userData.name || userData.username;
-                        loginPage.classList.remove('active');
-                        mainApp.style.display = 'flex';
-                        if (typeof window.applyUserPermissions === 'function') window.applyUserPermissions(userData);
-                        syncAllData();
-                        if (window.syncInterval) clearInterval(window.syncInterval);
-                        window.syncInterval = setInterval(() => syncAllData(), 60000);
-                        window.addEventListener('focus', () => syncAllData());
-                        document.addEventListener('visibilitychange', () => {
-                            if (!document.hidden) syncAllData();
-                        });
-                        const btnSync = document.getElementById('btn-sync');
-                        if (btnSync) btnSync.onclick = () => syncAllData(true);
-                    } else {
-                        loginPage.classList.add('active');
-                        mainApp.style.display = 'none';
-                    }
-                }
-            })();
-        } else {
-            const session = localStorage.getItem('invoice_flow_session');
-            if (session) {
-                const userData = JSON.parse(session);
-                if (userEmailSpan) userEmailSpan.textContent = userData.name || userData.username;
-                loginPage.classList.remove('active');
-                mainApp.style.display = 'flex';
-                if (typeof window.applyUserPermissions === 'function') window.applyUserPermissions(userData);
-                syncAllData();
-                if (window.syncInterval) clearInterval(window.syncInterval);
-                window.syncInterval = setInterval(() => syncAllData(), 60000);
-                window.addEventListener('focus', () => syncAllData());
-                document.addEventListener('visibilitychange', () => {
-                    if (!document.hidden) syncAllData();
-                });
-                const btnSync = document.getElementById('btn-sync');
-                if (btnSync) btnSync.onclick = () => syncAllData(true);
-            } else {
-                loginPage.classList.add('active');
-                mainApp.style.display = 'none';
-            }
+        const userEmailSpan = document.querySelector('.user-name');
+        const client = window.supabaseClient;
+        const showLogin = () => {
+            loginPage.classList.add('active');
+            mainApp.style.display = 'none';
+        };
+        const showApp = async user => {
+            if (!user || !window.sharedStorageSync) throw new Error('Shared data setup is unavailable. Please reload the page.');
+            await window.sharedStorageSync.initialize();
+            const appUser = {
+                id: user.id,
+                name: user.user_metadata?.full_name || user.email,
+                username: user.email,
+                role: user.app_metadata?.role === 'admin' ? 'Super Admin' : 'User',
+                permissions: Array.isArray(user.app_metadata?.permissions) && user.app_metadata.permissions.length
+                    ? user.app_metadata.permissions
+                    : ['all']
+            };
+            if (userEmailSpan) userEmailSpan.textContent = appUser.name || appUser.username;
+            loginPage.classList.remove('active');
+            mainApp.style.display = 'flex';
+            if (typeof window.applyUserPermissions === 'function') window.applyUserPermissions(appUser);
+            if (typeof initCompanyProfile === 'function') initCompanyProfile();
+            if (typeof updateAllPrintHeaders === 'function') updateAllPrintHeaders();
+            if (typeof window.renderDashboardStats === 'function') window.renderDashboardStats();
+            await syncAllData();
+            if (window.syncInterval) clearInterval(window.syncInterval);
+            window.syncInterval = setInterval(() => syncAllData(), 60000);
+            const btnSync = document.getElementById('btn-sync');
+            if (btnSync) btnSync.onclick = () => syncAllData(true);
+        };
+
+        if (!client?.auth) {
+            showLogin();
+            showNotification('Secure sign-in is unavailable. Please try again later.', 'error');
+            return;
         }
-
-        // Handle Form
-        if (loginForm) {
-            loginForm.addEventListener('submit', (e) => {
-                e.preventDefault();
-                const username = document.getElementById('login-email').value.trim(); // Repurposed for "Admin"
-                const password = document.getElementById('login-password').value.trim();
-                const btn = loginForm.querySelector('.btn-login');
-                
-                // Show loading state
-                const originalText = btn.innerHTML;
-                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Authenticating...';
-                btn.disabled = true;
-
-                // Authentication Check
-                setTimeout(() => {
-                    const STORAGE_KEY_TEAM = 'invoice_flow_team_members';
-                    const team = JSON.parse(localStorage.getItem(STORAGE_KEY_TEAM) || '[]');
-                    
-                    // Check hardcoded admin OR team members
-                    let authenticatedUser = null;
-                    if ((username.toLowerCase() === 'admin') && password === 'Chellam@1') {
-                        authenticatedUser = {
-                            name: 'Admin User',
-                            role: 'Super Admin',
-                            username: 'Admin',
-                            permissions: ['all']
-                        };
-                    } else {
-                        authenticatedUser = team.find(u => u.username === username && u.password === password);
-                    }
-
-                    if (authenticatedUser) {
-                        localStorage.setItem('invoice_flow_session', JSON.stringify(authenticatedUser));
-                        
-                        showNotification(`Welcome back, ${authenticatedUser.name || authenticatedUser.username}!`, 'success');
-                        
-                        // Update sidebar immediately
-                        if (userEmailSpan) userEmailSpan.textContent = authenticatedUser.name || authenticatedUser.username;
-                        
-                        // Transition to App
-                        loginPage.style.opacity = '0';
-                        setTimeout(() => {
-                            loginPage.classList.remove('active');
-                            mainApp.style.display = 'flex';
-                            mainApp.style.opacity = '0';
-                            setTimeout(() => mainApp.style.opacity = '1', 50);
-                            
-                            // Re-initialize key data
-                            if (typeof initCompanyProfile === 'function') initCompanyProfile();
-                            if (typeof updateAllPrintHeaders === 'function') updateAllPrintHeaders();
-                            if (typeof window.renderDashboardStats === 'function') window.renderDashboardStats();
-                            if (typeof window.applyUserPermissions === 'function') window.applyUserPermissions(authenticatedUser);
-                            
-                            // Start global sync
-                            syncAllData();
-                            
-                            // Setup auto-sync (every 60 seconds)
-                            if (window.syncInterval) clearInterval(window.syncInterval);
-                            window.syncInterval = setInterval(() => syncAllData(), 60000);
-
-                            // Setup manual sync button
-                            const btnSync = document.getElementById('btn-sync');
-                            if (btnSync) {
-                                btnSync.onclick = () => syncAllData(true);
-                            }
-                        }, 500);
-
-                    } else {
-                        showNotification('Invalid username or password. Please try again.', 'error');
-                        btn.innerHTML = originalText;
-                        btn.disabled = false;
-                    }
-                }, 1000);
+        client.auth.getSession().then(({ data, error }) => {
+            if (error || !data?.session?.user) { showLogin(); return; }
+            showApp(data.session.user).catch(error => {
+                showLogin();
+                showNotification(error.message, 'error');
             });
-        }
+        });
 
-        // Logout System
+        if (loginForm) loginForm.addEventListener('submit', async event => {
+            event.preventDefault();
+            const email = document.getElementById('login-email').value.trim();
+            const password = document.getElementById('login-password').value;
+            const button = loginForm.querySelector('.btn-login');
+            const originalText = button.innerHTML;
+            button.disabled = true;
+            button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Signing in...';
+            try {
+                const { data, error } = await client.auth.signInWithPassword({ email, password });
+                if (error || !data?.user) throw error || new Error('Sign in failed.');
+                await showApp(data.user);
+                showNotification(`Welcome back, ${data.user.user_metadata?.full_name || data.user.email}!`, 'success');
+            } catch (error) {
+                showNotification(error.message || 'Unable to sign in. Please check your email and password.', 'error');
+            } finally {
+                button.innerHTML = originalText;
+                button.disabled = false;
+            }
+        });
+
         const logoutBtn = document.getElementById('nav-logout');
         if (logoutBtn) {
-            logoutBtn.addEventListener('click', (e) => {
-                e.preventDefault();
-                if (confirm('Are you sure you want to logout?')) {
-                    localStorage.removeItem('invoice_flow_session');
-                    showNotification('You have been logged out.', 'info');
-                    
-                    // Transition back to login
-                    mainApp.style.opacity = '0';
-                    setTimeout(() => {
-                        mainApp.style.display = 'none';
-                        loginPage.classList.add('active');
-                        loginPage.style.opacity = '1';
-                        // Clear form
-                        if (loginForm) loginForm.reset();
-                    }, 500);
+            logoutBtn.addEventListener('click', async event => {
+                event.preventDefault();
+                try {
+                    const { error } = await client.auth.signOut();
+                    if (error) throw error;
+                    if (window.syncInterval) clearInterval(window.syncInterval);
+                    mainApp.style.display = 'none';
+                    loginPage.classList.add('active');
+                    if (loginForm) loginForm.reset();
+                } catch (error) {
+                    showNotification(error.message || 'Unable to sign out.', 'error');
                 }
             });
         }
@@ -329,46 +246,10 @@ if (document.readyState === 'loading') {
  * Automatically handles authentication and error management
  */
 async function apiFetch(endpoint, options = {}) {
-    try {
-        if (IS_STATIC_LOCAL_SERVER) {
-            throw new Error('Local static server has no API backend');
-        }
-
-        const method = (options.method || 'GET').toUpperCase();
-        const apiUrl = `${API_BASE}/api/${endpoint}`;
-        const response = await fetch(apiUrl, {
-            method,
-            ...options,
-            headers: {
-                'Content-Type': 'application/json',
-                ...options.headers
-            }
-        });
-        
-        if (!response.ok) {
-            const responseText = await response.text();
-            let err = {};
-            try {
-                err = responseText ? JSON.parse(responseText) : {};
-            } catch (_) {
-                err = { error: responseText };
-            }
-            throw new Error(err.error || err.message || `HTTP error! status: ${response.status}`);
-        }
-        
-        const payload = await response.json();
-
-        // Keep all browser sessions in sync after successful mutations
-        if (method !== 'GET' && method !== 'HEAD' && !options.skipAutoSync) {
-            scheduleGlobalSync();
-        }
-
-        return payload;
-    } catch (error) {
-        console.warn(`API Error (${endpoint}):`, error.message);
-        apiFetch.lastError = error;
-        return null;
-    }
+    // Business records now use the authenticated shared snapshot API. The older
+    // table handlers do not match the connected database schema and must not
+    // overwrite or duplicate the user's local records.
+    return null;
 }
 
 /**
@@ -377,11 +258,6 @@ async function apiFetch(endpoint, options = {}) {
  */
 async function saveInvoice() {
     try {
-        if (!supabase) {
-            showNotification('Supabase client not initialized', 'error');
-            console.error('Supabase client is not available');
-            return false;
-        }
 
         // Get invoice data from form
         const invoiceNoEl = document.getElementById('current-invoice-no');
@@ -412,22 +288,8 @@ async function saveInvoice() {
 
         console.log('Saving invoice:', invoiceData);
 
-        // Insert into Supabase
-        const { data, error } = await supabase
-            .from('invoices')
-            .insert([invoiceData])
-            .select();
-
-        if (error) {
-            console.error('Supabase insert error:', error);
-            showNotification(`Error saving invoice: ${error.message}`, 'error');
-            return false;
-        }
-
-        console.log('Invoice saved successfully:', data);
-        showNotification(`Invoice ${invoice_no} saved successfully!`, 'success');
-        
-        // Save to localStorage as well
+        // Keep invoice records in the shared-data store. Direct table writes used
+        // a schema that does not match the connected production database.
         const localInvoices = JSON.parse(localStorage.getItem('invoice_flow_invoices') || '[]');
         localInvoices.unshift({
             id: 'INV-' + Date.now(),
@@ -439,6 +301,7 @@ async function saveInvoice() {
             created_at: new Date().toISOString()
         });
         localStorage.setItem('invoice_flow_invoices', JSON.stringify(localInvoices));
+        showNotification(`Invoice ${invoice_no} saved and queued for shared sync.`, 'success');
         
         return true;
     } catch (error) {
@@ -511,100 +374,12 @@ async function syncAllData(isManual = false) {
     const syncIcon = document.getElementById('sync-icon');
     if (syncIcon) syncIcon.classList.add('fa-spin');
     
-    console.log('Starting global sync...');
     const startTime = Date.now();
     
     try {
-        // Sync Companies/Suppliers
-        const compData = await apiFetch('companies');
-        if (compData && compData.companies) {
-            localStorage.setItem('invoice_flow_customers', JSON.stringify(compData.companies));
-            if (typeof initSupplierForm === 'function') initSupplierForm();
-        }
-
-        // Sync Products
-        const prodData = await apiFetch('products');
-        if (prodData && prodData.products) {
-            localStorage.setItem('invoice_flow_products', JSON.stringify(prodData.products));
-            if (typeof initProducts === 'function') initProducts();
-        }
-
-        // Sync Invoices
-        const invData = await apiFetch('invoices?limit=100');
-        if (invData && invData.invoices) {
-            localStorage.setItem('invoice_flow_invoices', JSON.stringify(invData.invoices));
-            if (typeof window.renderInvoicesData === 'function') window.renderInvoicesData();
-        }
-
-        // Sync Purchase Orders
-        const poData = await apiFetch('purchase_orders');
-        console.log(`Sync: Received ${poData?.length || 0} Purchase Orders from server`);
-        if (poData && Array.isArray(poData)) {
-            localStorage.setItem('invoice_flow_pos', JSON.stringify(poData));
-            if (typeof window.renderPOList === 'function') window.renderPOList();
-        }
-
-        // Sync RDCs
-        const rdcData = await apiFetch('rdcs');
-        if (rdcData && rdcData.rdcs) {
-            const normalizedRdcs = rdcData.rdcs.map(normalizeRdcFromApi);
-            localStorage.setItem('invoice_flow_rdcs', JSON.stringify(normalizedRdcs));
-            if (typeof window.renderRDCList === 'function') window.renderRDCList();
-        }
-
-        // Sync DCs
-        const dcData = await apiFetch('delivery_challans');
-        if (dcData && dcData.delivery_challans) {
-            const normalizedDcs = dcData.delivery_challans.map(normalizeDeliveryChallanFromApi);
-            localStorage.setItem('invoice_flow_dcs', JSON.stringify(normalizedDcs));
-            if (typeof window.renderDCList === 'function') window.renderDCList();
-        }
-
-        // Sync Loading Sheets
-        const loadData = await apiFetch('loading_sheets');
-        if (loadData && loadData.loading_sheets) {
-            const normalizedSheets = loadData.loading_sheets.map(normalizeLoadingSheetFromApi);
-            localStorage.setItem('invoice_flow_loading_sheets', JSON.stringify(normalizedSheets));
-            if (typeof window.renderMainLoadingTable === 'function') {
-                window.allLoadingSheets = normalizedSheets;
-                window.renderMainLoadingTable();
-            } else {
-                if (typeof initLoadingSheets === 'function') initLoadingSheets();
-            }
-        }
-
-        // Sync Inventory
-        const invtData = await apiFetch('inventory');
-        if (invtData) {
-            const normalizedInventory = Array.isArray(invtData) ? invtData.map(normalizeInventoryFromApi) : [];
-            localStorage.setItem('invoice_flow_inventory', JSON.stringify(normalizedInventory));
-            if (typeof loadInventoryData === 'function') loadInventoryData();
-        }
-
-        // Sync Departments
-        const deptData = await apiFetch('departments');
-        if (deptData) {
-            localStorage.setItem('invoice_flow_departments', JSON.stringify(deptData));
-            if (typeof loadDeptData === 'function') loadDeptData();
-        }
-
-        // Sync Team Members
-        const teamData = await apiFetch('team_members');
-        if (teamData) {
-            localStorage.setItem('invoice_flow_team_members', JSON.stringify(teamData));
-            if (typeof renderTeamList === 'function') renderTeamList();
-        }
-
-        // Sync Company Profile
-        const profileData = await apiFetch('app_settings?key=company_profile');
-        if (profileData && profileData.value) {
-            localStorage.setItem('invoice_flow_company_profile', JSON.stringify(profileData.value));
-            if (typeof initCompanyProfile === 'function') initCompanyProfile();
-        }
-
-        if (isManual) {
-            showNotification('Data synchronized successfully!', 'success');
-        }
+        const synced = await window.sharedStorageSync?.pull();
+        if (!synced) throw new Error('Shared data is paused while a conflict is resolved.');
+        if (isManual) showNotification('Shared data is up to date.', 'success');
     } catch (error) {
         console.error('Sync Error:', error);
         if (isManual) showNotification('Sync failed. Please check connection.', 'error');
@@ -3259,235 +3034,26 @@ function initClosedItems() {
 
 /* ---- Authentication & Team Management ---- */
 function initAuth() {
-    const STORAGE_KEY_TEAM = 'invoice_flow_team_members';
-    const STORAGE_KEY_SESSION = 'invoice_flow_current_session';
-
-    // 1. Initial State
-    const defaultAdmin = {
-        username: 'ADMIN',
-        password: '123',
-        role: 'Super Admin',
-        permissions: ['nav-dashboard', 'nav-invoices', 'nav-dc', 'nav-loading-sheets', 'nav-po', 'nav-rdc', 'nav-manage', 'nav-settings']
-    };
-
-    // 2. Load/Save Team
-    function getTeam() {
-        const team = JSON.parse(localStorage.getItem(STORAGE_KEY_TEAM) || '[]');
-        if (team.length === 0) {
-            team.push(defaultAdmin);
-            localStorage.setItem(STORAGE_KEY_TEAM, JSON.stringify(team));
-        }
-        return team;
-    }
-
-    // 3. Session Management
-    function getCurrentUser() {
-        return JSON.parse(sessionStorage.getItem(STORAGE_KEY_SESSION)) || defaultAdmin;
-    }
-
     window.applyUserPermissions = function(user) {
-        console.log("Applying permissions for:", user.username, user.permissions);
-        
-        const isSuperAdmin = user.role === 'Super Admin' || (user.permissions && user.permissions.includes('all'));
-        
-        // Only target top-level nav items that are direct children of the nav container
-        const navItems = document.querySelectorAll('.sidebar-nav > [id]');
-        navItems.forEach(item => {
-            if (item.id === 'nav-logout' || item.id === 'current-user-info') return; 
-            
-            const permissionId = item.id;
-            const alternateId = permissionId.startsWith('nav-group-') ? permissionId.replace('nav-group-', 'nav-') : permissionId.replace('nav-', 'nav-group-');
-            
-            const hasAccess = isSuperAdmin || 
-                             (user.permissions && (
-                                 user.permissions.includes(permissionId) || 
-                                 user.permissions.includes(alternateId) ||
-                                 (permissionId === 'nav-po' && user.permissions.includes('nav-purchase-orders'))
-                             ));
-            
-            if (hasAccess) {
-                // Use flex for everything as per sidebar.css
-                item.style.display = 'flex';
-                // Item groups need flex-direction column to show sub-items correctly
-                if (item.classList.contains('nav-item-group')) {
-                    item.style.flexDirection = 'column';
-                }
-            } else {
-                item.style.display = 'none';
-            }
+        const permissions = user?.permissions || [];
+        const hasAll = permissions.includes('all');
+        document.querySelectorAll('.sidebar-nav > [id]').forEach(item => {
+            if (['nav-logout', 'current-user-info'].includes(item.id)) return;
+            if (hasAll || permissions.includes(item.id)) item.style.display = 'flex';
+            else item.style.display = 'none';
         });
-
-        // Update UI info
+        const name = user?.name || user?.username || 'User';
         const displayName = document.getElementById('user-display-name');
         const roleLabel = document.getElementById('user-role-label');
         const avatar = document.getElementById('user-avatar');
-        
-        if (displayName) displayName.textContent = user.name || user.username;
-        if (roleLabel) roleLabel.textContent = user.role;
-        if (avatar) avatar.textContent = (user.name || user.username).substring(0, 2).toUpperCase();
-    }
-
-    // Expose for login
-    function applyPermissions(user) {
-        window.applyUserPermissions(user);
-    }
-
-    // 4. Team Management (Admin Only)
-    function initTeamUI() {
-        const btnAdd = document.getElementById('btn-open-add-team');
-        const modalAdd = document.getElementById('modal-add-team');
-        const formAdd = document.getElementById('form-add-team');
-        const modalTitle = modalAdd.querySelector('h3');
-        const submitBtn = formAdd.querySelector('button[type="submit"]');
-        const teamTableBody = document.getElementById('team-table-body');
-        let currentEditIndex = -1;
-
-        if (btnAdd) {
-            btnAdd.onclick = () => {
-                currentEditIndex = -1;
-                modalTitle.textContent = 'Add Team Member';
-                submitBtn.textContent = 'Create Team Member';
-                formAdd.reset();
-                modalAdd.style.display = 'flex';
-            };
-        }
-
-        if (formAdd) {
-            formAdd.onsubmit = (e) => {
-                e.preventDefault();
-                const name = document.getElementById('team-name').value;
-                const password = document.getElementById('team-password').value;
-                const checks = formAdd.querySelectorAll('.permission-check:checked');
-                const permissions = Array.from(checks).map(c => c.dataset.id);
-
-                const team = getTeam();
-                const memberData = { username: name, password, role: currentEditIndex === 0 ? 'Super Admin' : 'User', permissions };
-
-                if (currentEditIndex > -1) {
-                    team[currentEditIndex] = memberData;
-                } else {
-                    team.push(memberData);
-                }
-
-                localStorage.setItem(STORAGE_KEY_TEAM, JSON.stringify(team));
-                
-                // Sync to Supabase
-                apiFetch('team_members', {
-                    method: 'POST',
-                    body: JSON.stringify(memberData)
-                });
-                
-                modalAdd.style.display = 'none';
-                formAdd.reset();
-                renderTeamList();
-                alert(currentEditIndex > -1 ? 'Team Member Updated!' : 'Team Member Added!');
-            };
-        }
-
-        function renderTeamList() {
-            if (!teamTableBody) return;
-            const team = getTeam();
-            teamTableBody.innerHTML = team.map((member, index) => `
-                <tr style="border-bottom: 1px solid var(--color-neutral-100);">
-                    <td style="padding: 16px;">
-                        <div style="display: flex; align-items: center; gap: 12px;">
-                            <div style="width: 40px; height: 40px; border-radius: 50%; background: var(--color-primary-100); color: var(--color-primary-700); display: flex; align-items: center; justify-content: center; font-weight: 700;">${member.username.substring(0,2).toUpperCase()}</div>
-                            <div>
-                                <div style="font-weight: 700; color: var(--color-neutral-900);">${member.username}</div>
-                                <div style="font-size: 0.75rem; color: var(--color-neutral-500);">${member.username}@example.com</div>
-                            </div>
-                        </div>
-                    </td>
-                    <td style="padding: 16px; color: var(--color-neutral-700); font-weight: 600;">${member.role}</td>
-                    <td style="padding: 16px; color: var(--color-neutral-700);">Management</td>
-                    <td style="padding: 16px;"><span style="background: var(--color-success-50); color: var(--color-success-700); padding: 4px 10px; border-radius: 99px; font-size: 0.75rem; font-weight: 700;">Active</span></td>
-                    <td style="padding: 16px; text-align: right;">
-                        <div style="display: flex; justify-content: flex-end; gap: 8px;">
-                            <button class="btn-edit-team" data-index="${index}" style="background: none; border: none; color: var(--color-primary-600); cursor: pointer;"><i class="fas fa-edit"></i></button>
-                            <button class="btn-delete-team" data-index="${index}" style="background: none; border: none; color: #ef4444; cursor: pointer; ${member.role === 'Super Admin' ? 'visibility: hidden' : ''}"><i class="fas fa-trash"></i></button>
-                        </div>
-                    </td>
-                </tr>
-            `).join('');
-
-            teamTableBody.querySelectorAll('.btn-edit-team').forEach(btn => {
-                btn.onclick = () => {
-                    const idx = parseInt(btn.dataset.index);
-                    const member = getTeam()[idx];
-                    currentEditIndex = idx;
-                    
-                    document.getElementById('team-name').value = member.username;
-                    document.getElementById('team-password').value = member.password;
-                    
-                    // Reset and set checks
-                    formAdd.querySelectorAll('.permission-check').forEach(check => {
-                        check.checked = member.role === 'Super Admin' || member.permissions.includes(check.dataset.id);
-                    });
-
-                    modalTitle.textContent = 'Edit Team Member';
-                    submitBtn.textContent = 'Update Team Member';
-                    modalAdd.style.display = 'flex';
-                };
-            });
-
-            teamTableBody.querySelectorAll('.btn-delete-team').forEach(btn => {
-                btn.onclick = () => {
-                    const idx = btn.dataset.index;
-                    const team = getTeam();
-                    if (confirm(`Delete user ${team[idx].username}?`)) {
-                        team.splice(idx, 1);
-                        localStorage.setItem(STORAGE_KEY_TEAM, JSON.stringify(team));
-                        renderTeamList();
-                    }
-                };
-            });
-        }
-
-        renderTeamList();
-    }
-
-    // 5. Login/Logout Logic
-    const loginModal = document.getElementById('modal-login');
-    const loginForm = document.getElementById('form-login');
-    const btnLogout = document.getElementById('nav-logout');
-
-    if (btnLogout) {
-        btnLogout.onclick = (e) => {
-            e.preventDefault();
-            if (confirm('Are you sure you want to logout?')) {
-                sessionStorage.removeItem(STORAGE_KEY_SESSION);
-                loginModal.style.display = 'flex';
-            }
-        };
-    }
-
-
-
-    const initPasswordToggles = () => {
-        document.querySelectorAll('.password-toggle-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const targetId = btn.dataset.target;
-                const input = document.getElementById(targetId);
-                const icon = btn.querySelector('i');
-                
-                if (input.type === 'password') {
-                    input.type = 'text';
-                    icon.classList.remove('fa-eye');
-                    icon.classList.add('fa-eye-slash');
-                } else {
-                    input.type = 'password';
-                    icon.classList.remove('fa-eye-slash');
-                    icon.classList.add('fa-eye');
-                }
-            });
-        });
+        if (displayName) displayName.textContent = name;
+        if (roleLabel) roleLabel.textContent = user?.role || 'User';
+        if (avatar) avatar.textContent = name.substring(0, 2).toUpperCase();
     };
-
-    // Initial load
-    const currentUser = getCurrentUser();
-    applyPermissions(currentUser);
-    initTeamUI();
-    initPasswordToggles();
+    const teamButton = document.getElementById('btn-open-add-team');
+    if (teamButton) { teamButton.disabled = true; teamButton.title = 'Create accounts in Supabase Auth'; }
+    const teamBody = document.getElementById('team-table-body');
+    if (teamBody) teamBody.innerHTML = '<tr><td colspan="5" style="padding:16px">User accounts are managed securely in Supabase Auth.</td></tr>';
 }
 
 /* ---- Purchase Orders Logic ---- */
@@ -3989,3 +3555,4 @@ document.addEventListener('DOMContentLoaded', () => {
     initCompanyProfile();
     updateAllPrintHeaders();
 });
+
