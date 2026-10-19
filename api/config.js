@@ -79,13 +79,21 @@ function validateCloudEnvironment() {
  * Get CORS configuration for cloud deployment
  * @returns {object} CORS headers
  */
-function getCorsHeaders() {
-    return {
-        'Access-Control-Allow-Origin': '*',
+function getCorsHeaders(origin = '') {
+    const allowedOrigins = new Set([
+        'https://invoice-flow-sigma-plum.vercel.app',
+        ...(process.env.APP_ORIGIN ? process.env.APP_ORIGIN.split(',').map(value => value.trim()) : []),
+        ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL}`] : []),
+        ...(process.env.NODE_ENV !== 'production' ? ['http://localhost:3000', 'http://127.0.0.1:3000'] : [])
+    ]);
+    const headers = {
         'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS, PATCH',
         'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
-        'Access-Control-Max-Age': '3600'
+        'Access-Control-Max-Age': '3600',
+        'Vary': 'Origin'
     };
+    if (origin && allowedOrigins.has(origin)) headers['Access-Control-Allow-Origin'] = origin;
+    return headers;
 }
 
 /**
@@ -109,3 +117,4 @@ module.exports = {
     getCorsHeaders,
     getSecurityHeaders
 };
+
