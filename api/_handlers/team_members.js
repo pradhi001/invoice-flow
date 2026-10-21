@@ -1,28 +1,20 @@
-const supabase = require('../../lib/supabase');
-
 module.exports = async (req, res) => {
-    const { method } = req;
+    if (req.method === 'GET') {
+        const user = req.authUser;
+        if (!user) return res.status(401).json({ error: 'Sign in to access Invoice Flow.' });
 
-    try {
-        if (method === 'GET') {
-            const { data, error } = await supabase
-                .from('team_members')
-                .select('id,username,role,permissions,created_at,updated_at')
-                .order('created_at', { ascending: false });
-
-            if (error) throw error;
-            return res.status(200).json(data);
-        }
-
-        if (method === 'POST' || method === 'DELETE') {
-            return res.status(403).json({ error: 'Manage user accounts in Supabase Auth. Passwords are not stored in Invoice Flow.' });
-        }
-
-        res.setHeader('Allow', ['GET']);
-        return res.status(405).end(`Method ${method} Not Allowed`);
-    } catch (error) {
-        console.error('Team Members API Error:', error);
-        return res.status(500).json({ error: error.message });
+        return res.status(200).json([{
+            id: user.id,
+            username: user.email || '',
+            role: req.authRole || 'user',
+            permissions: req.authPermissions || []
+        }]);
     }
-};
 
+    if (req.method === 'POST' || req.method === 'DELETE') {
+        return res.status(403).json({ error: 'Manage account access in Supabase Auth.' });
+    }
+
+    res.setHeader('Allow', ['GET']);
+    return res.status(405).json({ error: 'Method not allowed.' });
+};
