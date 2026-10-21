@@ -1,7 +1,7 @@
 (() => {
     const DATA_PREFIX = 'invoice_flow_';
     const DATA_KEY = /^invoice_flow_[a-z0-9_]+$/i;
-    const PRIVATE_KEY = /(?:session|current_user|team_members|user_companies|password|token)/i;
+    const PRIVATE_KEY = /(?:auth|session|current_user|team_members|user_companies|users?|credential|password|token)/i;
     const CLOUD_URL = `${window.location.origin}/api/shared_data`;
     const state = { version: null, enabled: false, installed: false, applying: false, paused: false, dirty: false, flushing: false, timer: null, lastSnapshot: null };
 
@@ -152,15 +152,17 @@
         return { merged, conflicts };
     };
 
-    const applySnapshot = snapshot => {
+    const applySnapshot = (snapshot, replaceKeys = [], preferCloudWhenLocalIsEmpty = false) => {
+        const replace = new Set(replaceKeys);
         state.applying = true;
         try {
-            for (let i = localStorage.length - 1; i >= 0; i -= 1) {
-                const key = localStorage.key(i);
-                if (key && isDataKey(key)) localStorage.removeItem(key);
-            }
             for (const [key, value] of Object.entries(snapshot || {})) {
-                if (isDataKey(key) && typeof value === 'string') localStorage.setItem(key, value);
+                if (!isDataKey(key) || typeof value !== 'string') continue;
+                const current = localStorage.getItem(key);
+                const localKeyIsEmpty = current !== null && !hasData({ [key]: current });
+                if (current === null || replace.has(key) || (preferCloudWhenLocalIsEmpty && localKeyIsEmpty)) {
+                    localStorage.setItem(key, value);
+                }
             }
         } finally {
             state.applying = false;
@@ -306,7 +308,7 @@
             return true;
         }
         if (!localExists && cloudExists) {
-            applySnapshot(cloud.value);
+            applySnapshot(cloud.value, [], true);
             state.version = cloud.updated_at;
             state.lastSnapshot = cloud.value;
             installWriteThrough();
@@ -363,7 +365,7 @@
                     if (merge.conflicts.length) throw new Error(`Found ${merge.conflicts.length} records that differ on both copies. No cloud data was changed; keep the backup and contact your administrator to resolve them.`);
                     const saved = await request('PUT', { value: merge.merged, expectedUpdatedAt: cloud.updated_at });
                     state.version = saved.updated_at;
-                    applySnapshot(saved.value);
+                    applySnapshot(saved.value, Object.keys(merge.merged));
                     state.lastSnapshot = saved.value;
                     installWriteThrough();
                     startPolling();
@@ -373,22 +375,6 @@
             const mergeAction = actions[1];
             const originalRun = actions[0].run;
             actions[0].run = async () => { await originalRun(); mergeAction.disabled = false; };
-            actions.push({
-                label: 'Keep backup and use shared cloud copy',
-                disabled: true,
-                run: async () => {
-                    if (!backupReady) throw new Error('Download a local backup first.');
-                    applySnapshot(cloud.value);
-                    state.version = cloud.updated_at;
-                    state.lastSnapshot = cloud.value;
-                    installWriteThrough();
-                    startPolling();
-                },
-                result: true
-            });
-            const useCloudAction = actions[2];
-            const previousRun = actions[0].run;
-            actions[0].run = async () => { await previousRun(); useCloudAction.disabled = false; };
         }
 
         return gate(
