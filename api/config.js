@@ -27,8 +27,8 @@ function getApiBaseUrl() {
  * @returns {object} Supabase configuration with url and key
  */
 function getSupabaseConfig() {
-    const url = process.env.SUPABASE_URL;
-    const key = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY;
+    const url = process.env.SUPABASE_URL?.trim();
+    const key = process.env.SUPABASE_SERVICE_KEY;
     
     if (!url || !key) {
         console.warn('⚠️  Warning: Supabase environment variables not fully configured');
@@ -36,10 +36,7 @@ function getSupabaseConfig() {
         console.warn('   SUPABASE_KEY:', key ? '✓ Set' : '✗ Missing');
     }
     
-    return {
-        url: url || 'https://placeholder.supabase.co',
-        key: key || 'placeholder-key'
-    };
+    return { url: url || null, key: key || null };
 }
 
 /**
@@ -51,12 +48,23 @@ function validateCloudEnvironment() {
     const warnings = [];
     
     // Check critical variables
-    if (!process.env.SUPABASE_URL) {
+    const supabaseUrl = process.env.SUPABASE_URL?.trim();
+    if (!supabaseUrl) {
         errors.push('SUPABASE_URL environment variable is missing');
+    } else {
+        try {
+            const parsed = new URL(supabaseUrl);
+            const localHttp = process.env.NODE_ENV !== 'production' && parsed.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(parsed.hostname);
+            if ((!localHttp && parsed.protocol !== 'https:') || parsed.username || parsed.password || parsed.search || parsed.hash || (parsed.pathname !== '/' && parsed.pathname !== '')) {
+                errors.push('SUPABASE_URL must be a valid HTTPS project URL');
+            }
+        } catch (_) {
+            errors.push('SUPABASE_URL must be a valid HTTPS project URL');
+        }
     }
     
-    if (!process.env.SUPABASE_SERVICE_KEY && !process.env.SUPABASE_ANON_KEY) {
-        errors.push('SUPABASE_SERVICE_KEY or SUPABASE_ANON_KEY environment variable is missing');
+    if (!process.env.SUPABASE_SERVICE_KEY) {
+        errors.push('SUPABASE_SERVICE_KEY environment variable is missing');
     }
     
     if (process.env.NODE_ENV === 'production') {
@@ -79,13 +87,21 @@ function validateCloudEnvironment() {
  * Get CORS configuration for cloud deployment
  * @returns {object} CORS headers
  */
-function getCorsHeaders() {
-    return {
-        'Access-Control-Allow-Origin': '*',
+function getCorsHeaders(origin = '') {
+    const allowedOrigins = new Set([
+        'https://invoice-flow-sigma-plum.vercel.app',
+        ...(process.env.APP_ORIGIN ? process.env.APP_ORIGIN.split(',').map(value => value.trim()) : []),
+        ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL}`] : []),
+        ...(process.env.NODE_ENV !== 'production' ? ['http://localhost:3000', 'http://127.0.0.1:3000'] : [])
+    ]);
+    const headers = {
         'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS, PATCH',
         'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
-        'Access-Control-Max-Age': '3600'
+        'Access-Control-Max-Age': '3600',
+        'Vary': 'Origin'
     };
+    if (origin && allowedOrigins.has(origin)) headers['Access-Control-Allow-Origin'] = origin;
+    return headers;
 }
 
 /**

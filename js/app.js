@@ -1,13 +1,17 @@
 /* ========================================
    Invoice Flow - App JavaScript
-   Version: 1.1.3
+   Version: 1.2.0
    ======================================== */
-console.log('App Version: 1.1.3 Loaded');
+console.log('App Version: 1.2.0 Loaded');
 
 // --- 0. SUPABASE CLIENT ---
 // Get the global Supabase client initialized in index.html
 // NOTE: window.supabaseClient is set in index.html via CDN
 const supabase = typeof window !== 'undefined' && window.supabaseClient ? window.supabaseClient : null;
+const sharedStorageReady = import('./sharedStorage.js').catch(error => {
+    console.error('Shared data module failed to load:', error);
+    return null;
+});
 
 if (supabase) {
   console.log('Supabase client available');
@@ -116,174 +120,145 @@ function formatCurrency(amount) {
 
 const onAppReady = () => {
     console.log('DOM Content Loaded - Initializing App');
+    let appModulesInitialized = false;
+
+    const initAppModules = () => {
+        if (appModulesInitialized) return;
+        const initFunctions = [
+            { name: 'DC', fn: typeof initDCForm !== 'undefined' ? initDCForm : null },
+            { name: 'Navigation', fn: typeof initNavigation !== 'undefined' ? initNavigation : null },
+            { name: 'Search', fn: typeof initSearch !== 'undefined' ? initSearch : null },
+            { name: 'Animations', fn: typeof initAnimations !== 'undefined' ? initAnimations : null },
+            { name: 'InvoiceTabs', fn: typeof initInvoiceTabs !== 'undefined' ? initInvoiceTabs : null },
+            { name: 'LoadingSheets', fn: typeof initLoadingSheets !== 'undefined' ? initLoadingSheets : null },
+            { name: 'Inventory', fn: typeof initInventory !== 'undefined' ? initInventory : null },
+            { name: 'Dept', fn: typeof initDept !== 'undefined' ? initDept : null },
+            { name: 'Products', fn: typeof initProducts !== 'undefined' ? initProducts : null },
+            { name: 'Suppliers', fn: typeof initSupplierForm !== 'undefined' ? initSupplierForm : null },
+            { name: 'RDC', fn: typeof initRDC !== 'undefined' ? initRDC : null },
+            { name: 'ClosedItems', fn: typeof initClosedItems !== 'undefined' ? initClosedItems : null },
+            { name: 'PO', fn: typeof initPO !== 'undefined' ? initPO : null }
+        ];
+        initFunctions.forEach(module => {
+            try { if (module.fn) module.fn(); }
+            catch (error) { console.error(`Error in ${module.name}:`, error); }
+        });
+        appModulesInitialized = true;
+        if (typeof window.renderDCList === 'function') window.renderDCList();
+        if (typeof window.renderMainLoadingTable === 'function') window.renderMainLoadingTable();
+    };
     
     // --- 0. LOGIN SYSTEM ---
     const initLogin = () => {
         const loginPage = document.getElementById('login-page');
         const mainApp = document.getElementById('main-app');
         const loginForm = document.getElementById('login-form');
-        const userEmailSpan = document.querySelector('.user-name'); // Sidebar name
-        
-        // Check Session - prefer RBAC sessionManager if available
-        if (typeof window.sessionManager !== 'undefined') {
-            (async () => {
-                const restored = await window.sessionManager.init().catch(() => false);
-                if (restored && window.sessionManager.isValid()) {
-                    const userData = window.sessionManager.getUserInfo();
-                    if (userEmailSpan) userEmailSpan.textContent = userData.username || userData.name || '';
-                    loginPage.classList.remove('active');
-                    mainApp.style.display = 'flex';
-                    if (typeof window.applyUserPermissions === 'function') window.applyUserPermissions(window.sessionManager.getUserInfo());
-                    syncAllData();
-                    if (window.syncInterval) clearInterval(window.syncInterval);
-                    window.syncInterval = setInterval(() => syncAllData(), 60000);
-                    window.addEventListener('focus', () => syncAllData());
-                    document.addEventListener('visibilitychange', () => {
-                        if (!document.hidden) syncAllData();
-                    });
-                    const btnSync = document.getElementById('btn-sync');
-                    if (btnSync) btnSync.onclick = () => syncAllData(true);
-                } else {
-                    // fall back to legacy localStorage session if present
-                    const session = localStorage.getItem('invoice_flow_session');
-                    if (session) {
-                        const userData = JSON.parse(session);
-                        if (userEmailSpan) userEmailSpan.textContent = userData.name || userData.username;
-                        loginPage.classList.remove('active');
-                        mainApp.style.display = 'flex';
-                        if (typeof window.applyUserPermissions === 'function') window.applyUserPermissions(userData);
-                        syncAllData();
-                        if (window.syncInterval) clearInterval(window.syncInterval);
-                        window.syncInterval = setInterval(() => syncAllData(), 60000);
-                        window.addEventListener('focus', () => syncAllData());
-                        document.addEventListener('visibilitychange', () => {
-                            if (!document.hidden) syncAllData();
-                        });
-                        const btnSync = document.getElementById('btn-sync');
-                        if (btnSync) btnSync.onclick = () => syncAllData(true);
-                    } else {
-                        loginPage.classList.add('active');
-                        mainApp.style.display = 'none';
-                    }
-                }
-            })();
-        } else {
-            const session = localStorage.getItem('invoice_flow_session');
-            if (session) {
-                const userData = JSON.parse(session);
-                if (userEmailSpan) userEmailSpan.textContent = userData.name || userData.username;
-                loginPage.classList.remove('active');
-                mainApp.style.display = 'flex';
-                if (typeof window.applyUserPermissions === 'function') window.applyUserPermissions(userData);
-                syncAllData();
-                if (window.syncInterval) clearInterval(window.syncInterval);
-                window.syncInterval = setInterval(() => syncAllData(), 60000);
-                window.addEventListener('focus', () => syncAllData());
-                document.addEventListener('visibilitychange', () => {
-                    if (!document.hidden) syncAllData();
-                });
-                const btnSync = document.getElementById('btn-sync');
-                if (btnSync) btnSync.onclick = () => syncAllData(true);
-            } else {
-                loginPage.classList.add('active');
-                mainApp.style.display = 'none';
-            }
+        const userEmailSpan = document.querySelector('.user-name');
+        const client = window.supabaseClient;
+        const showLogin = () => {
+            loginPage.classList.add('active');
+            mainApp.style.display = 'none';
+        };
+        const showApp = async user => {
+            await sharedStorageReady;
+            if (!user || !window.sharedStorageSync) throw new Error('Shared data setup is unavailable. Please reload the page.');
+            await window.sharedStorageSync.initialize();
+            if (!appModulesInitialized) initAuth();
+            initAppModules();
+            const appUser = {
+                id: user.id,
+                name: user.user_metadata?.full_name || user.email,
+                username: user.email,
+                role: user.app_metadata?.role === 'admin' ? 'Super Admin' : 'User',
+                permissions: Array.isArray(user.app_metadata?.permissions) && user.app_metadata.permissions.length
+                    ? user.app_metadata.permissions
+                    : []
+            };
+            if (userEmailSpan) userEmailSpan.textContent = appUser.name || appUser.username;
+            const profileAvatar = document.querySelector('.user-profile img');
+            if (profileAvatar) { profileAvatar.alt = appUser.name || 'User profile'; profileAvatar.hidden = true; }
+            loginPage.classList.remove('active');
+            mainApp.style.display = 'flex';
+            if (typeof window.applyUserPermissions === 'function') window.applyUserPermissions(appUser);
+            if (typeof initCompanyProfile === 'function') initCompanyProfile();
+            if (typeof updateAllPrintHeaders === 'function') updateAllPrintHeaders();
+            if (typeof window.renderDashboardStats === 'function') window.renderDashboardStats();
+            await syncAllData();
+            await loadDashboardData();
+            await loadInvoicesData();
+            if (window.syncInterval) clearInterval(window.syncInterval);
+            window.syncInterval = setInterval(() => syncAllData(), 60000);
+            const btnSync = document.getElementById('btn-sync');
+            if (btnSync) btnSync.onclick = () => syncAllData(true);
+        };
+
+        if (!client?.auth) {
+            showLogin();
+            showNotification('Secure sign-in is unavailable. Please try again later.', 'error');
+            return;
         }
-
-        // Handle Form
-        if (loginForm) {
-            loginForm.addEventListener('submit', (e) => {
-                e.preventDefault();
-                const username = document.getElementById('login-email').value.trim(); // Repurposed for "Admin"
-                const password = document.getElementById('login-password').value.trim();
-                const btn = loginForm.querySelector('.btn-login');
-                
-                // Show loading state
-                const originalText = btn.innerHTML;
-                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Authenticating...';
-                btn.disabled = true;
-
-                // Authentication Check
-                setTimeout(() => {
-                    const STORAGE_KEY_TEAM = 'invoice_flow_team_members';
-                    const team = JSON.parse(localStorage.getItem(STORAGE_KEY_TEAM) || '[]');
-                    
-                    // Check hardcoded admin OR team members
-                    let authenticatedUser = null;
-                    if ((username.toLowerCase() === 'admin') && password === 'Chellam@1') {
-                        authenticatedUser = {
-                            name: 'Admin User',
-                            role: 'Super Admin',
-                            username: 'Admin',
-                            permissions: ['all']
-                        };
-                    } else {
-                        authenticatedUser = team.find(u => u.username === username && u.password === password);
-                    }
-
-                    if (authenticatedUser) {
-                        localStorage.setItem('invoice_flow_session', JSON.stringify(authenticatedUser));
-                        
-                        showNotification(`Welcome back, ${authenticatedUser.name || authenticatedUser.username}!`, 'success');
-                        
-                        // Update sidebar immediately
-                        if (userEmailSpan) userEmailSpan.textContent = authenticatedUser.name || authenticatedUser.username;
-                        
-                        // Transition to App
-                        loginPage.style.opacity = '0';
-                        setTimeout(() => {
-                            loginPage.classList.remove('active');
-                            mainApp.style.display = 'flex';
-                            mainApp.style.opacity = '0';
-                            setTimeout(() => mainApp.style.opacity = '1', 50);
-                            
-                            // Re-initialize key data
-                            if (typeof initCompanyProfile === 'function') initCompanyProfile();
-                            if (typeof updateAllPrintHeaders === 'function') updateAllPrintHeaders();
-                            if (typeof window.renderDashboardStats === 'function') window.renderDashboardStats();
-                            if (typeof window.applyUserPermissions === 'function') window.applyUserPermissions(authenticatedUser);
-                            
-                            // Start global sync
-                            syncAllData();
-                            
-                            // Setup auto-sync (every 60 seconds)
-                            if (window.syncInterval) clearInterval(window.syncInterval);
-                            window.syncInterval = setInterval(() => syncAllData(), 60000);
-
-                            // Setup manual sync button
-                            const btnSync = document.getElementById('btn-sync');
-                            if (btnSync) {
-                                btnSync.onclick = () => syncAllData(true);
-                            }
-                        }, 500);
-
-                    } else {
-                        showNotification('Invalid username or password. Please try again.', 'error');
-                        btn.innerHTML = originalText;
-                        btn.disabled = false;
-                    }
-                }, 1000);
+        client.auth.getSession().then(({ data, error }) => {
+            if (error || !data?.session?.user) { showLogin(); return; }
+            showApp(data.session.user).catch(error => {
+                if (error.status === 403) client.auth.signOut();
+                showLogin();
+                showNotification(error.message, 'error');
             });
-        }
+        });
 
-        // Logout System
+        if (loginForm) loginForm.addEventListener('submit', async event => {
+            event.preventDefault();
+            const email = document.getElementById('login-email').value.trim();
+            const password = document.getElementById('login-password').value;
+            const button = loginForm.querySelector('.btn-login');
+            const originalText = button.innerHTML;
+            button.disabled = true;
+            button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Signing in...';
+            try {
+                const { data, error } = await client.auth.signInWithPassword({ email, password });
+                if (error || !data?.user) throw error || new Error('Sign in failed.');
+                await showApp(data.user);
+                showNotification(`Welcome back, ${data.user.user_metadata?.full_name || data.user.email}!`, 'success');
+            } catch (error) {
+                if (error.status === 403) await client.auth.signOut();
+                showNotification(error.message || 'Unable to sign in. Please check your email and password.', 'error');
+            } finally {
+                button.innerHTML = originalText;
+                button.disabled = false;
+            }
+        });
+
+        const forgotPasswordLink = Array.from(document.querySelectorAll('#login-page a'))
+            .find(link => link.textContent.trim().toLowerCase() === 'forgot password?');
+        if (forgotPasswordLink) forgotPasswordLink.addEventListener('click', async event => {
+            event.preventDefault();
+            const email = document.getElementById('login-email')?.value.trim();
+            if (!email) {
+                showNotification('Enter your account email first, then select Forgot Password.', 'warning');
+                return;
+            }
+            try {
+                const { error } = await client.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin });
+                if (error) throw error;
+                showNotification('If the account exists, password reset instructions have been sent.', 'success');
+            } catch (error) {
+                showNotification(error.message || 'Unable to send password reset instructions.', 'error');
+            }
+        });
+
         const logoutBtn = document.getElementById('nav-logout');
         if (logoutBtn) {
-            logoutBtn.addEventListener('click', (e) => {
-                e.preventDefault();
-                if (confirm('Are you sure you want to logout?')) {
-                    localStorage.removeItem('invoice_flow_session');
-                    showNotification('You have been logged out.', 'info');
-                    
-                    // Transition back to login
-                    mainApp.style.opacity = '0';
-                    setTimeout(() => {
-                        mainApp.style.display = 'none';
-                        loginPage.classList.add('active');
-                        loginPage.style.opacity = '1';
-                        // Clear form
-                        if (loginForm) loginForm.reset();
-                    }, 500);
+            logoutBtn.addEventListener('click', async event => {
+                event.preventDefault();
+                try {
+                    const { error } = await client.auth.signOut();
+                    if (error) throw error;
+                    if (window.syncInterval) clearInterval(window.syncInterval);
+                    mainApp.style.display = 'none';
+                    loginPage.classList.add('active');
+                    if (loginForm) loginForm.reset();
+                } catch (error) {
+                    showNotification(error.message || 'Unable to sign out.', 'error');
                 }
             });
         }
@@ -291,30 +266,8 @@ const onAppReady = () => {
 
     initLogin();
 
-    if (typeof window.renderDCList === 'function') window.renderDCList();
-    const initFunctions = [
-        { name: 'DC', fn: typeof initDCForm !== 'undefined' ? initDCForm : null },
-        { name: 'Navigation', fn: typeof initNavigation !== 'undefined' ? initNavigation : null },
-        { name: 'Search', fn: typeof initSearch !== 'undefined' ? initSearch : null },
-        { name: 'Animations', fn: typeof initAnimations !== 'undefined' ? initAnimations : null },
-        { name: 'InvoiceTabs', fn: typeof initInvoiceTabs !== 'undefined' ? initInvoiceTabs : null },
-        { name: 'LoadingSheets', fn: typeof initLoadingSheets !== 'undefined' ? initLoadingSheets : null },
-        { name: 'Inventory', fn: typeof initInventory !== 'undefined' ? initInventory : null },
-        { name: 'Dept', fn: typeof initDept !== 'undefined' ? initDept : null },
-        { name: 'Products', fn: typeof initProducts !== 'undefined' ? initProducts : null },
-        { name: 'Suppliers', fn: typeof initSupplierForm !== 'undefined' ? initSupplierForm : null },
-        { name: 'RDC', fn: typeof initRDC !== 'undefined' ? initRDC : null },
-        { name: 'ClosedItems', fn: typeof initClosedItems !== 'undefined' ? initClosedItems : null },
-        { name: 'PO', fn: typeof initPO !== 'undefined' ? initPO : null },
-        { name: 'Auth', fn: typeof initAuth !== 'undefined' ? initAuth : null }
-    ];
-
-    initFunctions.forEach(m => {
-        try { if (m.fn) m.fn(); } catch (e) { console.error(`Error in ${m.name}:`, e); }
-    });
-
-    loadDashboardData().catch(e => console.error('Dashboard error:', e));
-    loadInvoicesData().catch(e => console.error('Invoices error:', e));
+    // Business modules initialize only after authentication and the local-data
+    // backup/import decision so empty devices are not populated with demo rows.
 };
 
 if (document.readyState === 'loading') {
@@ -329,46 +282,10 @@ if (document.readyState === 'loading') {
  * Automatically handles authentication and error management
  */
 async function apiFetch(endpoint, options = {}) {
-    try {
-        if (IS_STATIC_LOCAL_SERVER) {
-            throw new Error('Local static server has no API backend');
-        }
-
-        const method = (options.method || 'GET').toUpperCase();
-        const apiUrl = `${API_BASE}/api/${endpoint}`;
-        const response = await fetch(apiUrl, {
-            method,
-            ...options,
-            headers: {
-                'Content-Type': 'application/json',
-                ...options.headers
-            }
-        });
-        
-        if (!response.ok) {
-            const responseText = await response.text();
-            let err = {};
-            try {
-                err = responseText ? JSON.parse(responseText) : {};
-            } catch (_) {
-                err = { error: responseText };
-            }
-            throw new Error(err.error || err.message || `HTTP error! status: ${response.status}`);
-        }
-        
-        const payload = await response.json();
-
-        // Keep all browser sessions in sync after successful mutations
-        if (method !== 'GET' && method !== 'HEAD' && !options.skipAutoSync) {
-            scheduleGlobalSync();
-        }
-
-        return payload;
-    } catch (error) {
-        console.warn(`API Error (${endpoint}):`, error.message);
-        apiFetch.lastError = error;
-        return null;
-    }
+    // Business records now use the authenticated shared snapshot API. The older
+    // table handlers do not match the connected database schema and must not
+    // overwrite or duplicate the user's local records.
+    return null;
 }
 
 /**
@@ -377,11 +294,6 @@ async function apiFetch(endpoint, options = {}) {
  */
 async function saveInvoice() {
     try {
-        if (!supabase) {
-            showNotification('Supabase client not initialized', 'error');
-            console.error('Supabase client is not available');
-            return false;
-        }
 
         // Get invoice data from form
         const invoiceNoEl = document.getElementById('current-invoice-no');
@@ -412,22 +324,8 @@ async function saveInvoice() {
 
         console.log('Saving invoice:', invoiceData);
 
-        // Insert into Supabase
-        const { data, error } = await supabase
-            .from('invoices')
-            .insert([invoiceData])
-            .select();
-
-        if (error) {
-            console.error('Supabase insert error:', error);
-            showNotification(`Error saving invoice: ${error.message}`, 'error');
-            return false;
-        }
-
-        console.log('Invoice saved successfully:', data);
-        showNotification(`Invoice ${invoice_no} saved successfully!`, 'success');
-        
-        // Save to localStorage as well
+        // Keep invoice records in the shared-data store. Direct table writes used
+        // a schema that does not match the connected production database.
         const localInvoices = JSON.parse(localStorage.getItem('invoice_flow_invoices') || '[]');
         localInvoices.unshift({
             id: 'INV-' + Date.now(),
@@ -439,6 +337,7 @@ async function saveInvoice() {
             created_at: new Date().toISOString()
         });
         localStorage.setItem('invoice_flow_invoices', JSON.stringify(localInvoices));
+        showNotification(`Invoice ${invoice_no} saved and queued for shared sync.`, 'success');
         
         return true;
     } catch (error) {
@@ -511,100 +410,12 @@ async function syncAllData(isManual = false) {
     const syncIcon = document.getElementById('sync-icon');
     if (syncIcon) syncIcon.classList.add('fa-spin');
     
-    console.log('Starting global sync...');
     const startTime = Date.now();
     
     try {
-        // Sync Companies/Suppliers
-        const compData = await apiFetch('companies');
-        if (compData && compData.companies) {
-            localStorage.setItem('invoice_flow_customers', JSON.stringify(compData.companies));
-            if (typeof initSupplierForm === 'function') initSupplierForm();
-        }
-
-        // Sync Products
-        const prodData = await apiFetch('products');
-        if (prodData && prodData.products) {
-            localStorage.setItem('invoice_flow_products', JSON.stringify(prodData.products));
-            if (typeof initProducts === 'function') initProducts();
-        }
-
-        // Sync Invoices
-        const invData = await apiFetch('invoices?limit=100');
-        if (invData && invData.invoices) {
-            localStorage.setItem('invoice_flow_invoices', JSON.stringify(invData.invoices));
-            if (typeof window.renderInvoicesData === 'function') window.renderInvoicesData();
-        }
-
-        // Sync Purchase Orders
-        const poData = await apiFetch('purchase_orders');
-        console.log(`Sync: Received ${poData?.length || 0} Purchase Orders from server`);
-        if (poData && Array.isArray(poData)) {
-            localStorage.setItem('invoice_flow_pos', JSON.stringify(poData));
-            if (typeof window.renderPOList === 'function') window.renderPOList();
-        }
-
-        // Sync RDCs
-        const rdcData = await apiFetch('rdcs');
-        if (rdcData && rdcData.rdcs) {
-            const normalizedRdcs = rdcData.rdcs.map(normalizeRdcFromApi);
-            localStorage.setItem('invoice_flow_rdcs', JSON.stringify(normalizedRdcs));
-            if (typeof window.renderRDCList === 'function') window.renderRDCList();
-        }
-
-        // Sync DCs
-        const dcData = await apiFetch('delivery_challans');
-        if (dcData && dcData.delivery_challans) {
-            const normalizedDcs = dcData.delivery_challans.map(normalizeDeliveryChallanFromApi);
-            localStorage.setItem('invoice_flow_dcs', JSON.stringify(normalizedDcs));
-            if (typeof window.renderDCList === 'function') window.renderDCList();
-        }
-
-        // Sync Loading Sheets
-        const loadData = await apiFetch('loading_sheets');
-        if (loadData && loadData.loading_sheets) {
-            const normalizedSheets = loadData.loading_sheets.map(normalizeLoadingSheetFromApi);
-            localStorage.setItem('invoice_flow_loading_sheets', JSON.stringify(normalizedSheets));
-            if (typeof window.renderMainLoadingTable === 'function') {
-                window.allLoadingSheets = normalizedSheets;
-                window.renderMainLoadingTable();
-            } else {
-                if (typeof initLoadingSheets === 'function') initLoadingSheets();
-            }
-        }
-
-        // Sync Inventory
-        const invtData = await apiFetch('inventory');
-        if (invtData) {
-            const normalizedInventory = Array.isArray(invtData) ? invtData.map(normalizeInventoryFromApi) : [];
-            localStorage.setItem('invoice_flow_inventory', JSON.stringify(normalizedInventory));
-            if (typeof loadInventoryData === 'function') loadInventoryData();
-        }
-
-        // Sync Departments
-        const deptData = await apiFetch('departments');
-        if (deptData) {
-            localStorage.setItem('invoice_flow_departments', JSON.stringify(deptData));
-            if (typeof loadDeptData === 'function') loadDeptData();
-        }
-
-        // Sync Team Members
-        const teamData = await apiFetch('team_members');
-        if (teamData) {
-            localStorage.setItem('invoice_flow_team_members', JSON.stringify(teamData));
-            if (typeof renderTeamList === 'function') renderTeamList();
-        }
-
-        // Sync Company Profile
-        const profileData = await apiFetch('app_settings?key=company_profile');
-        if (profileData && profileData.value) {
-            localStorage.setItem('invoice_flow_company_profile', JSON.stringify(profileData.value));
-            if (typeof initCompanyProfile === 'function') initCompanyProfile();
-        }
-
-        if (isManual) {
-            showNotification('Data synchronized successfully!', 'success');
-        }
+        const synced = await window.sharedStorageSync?.pull();
+        if (!synced) throw new Error('Shared data is paused while a conflict is resolved.');
+        if (isManual) showNotification('Shared data is up to date.', 'success');
     } catch (error) {
         console.error('Sync Error:', error);
         if (isManual) showNotification('Sync failed. Please check connection.', 'error');
@@ -621,52 +432,97 @@ async function syncAllData(isManual = false) {
 
 // --- 3. DASHBOARD DATA ---
 async function loadDashboardData() {
-    const data = await apiFetch('dashboard');
-    if (!data) return; // Keep static HTML if API unavailable
+    const readList = key => {
+        try {
+            const value = JSON.parse(localStorage.getItem(key) || '[]');
+            return Array.isArray(value) ? value : [];
+        } catch (_) { return []; }
+    };
+    const invoices = readList('invoice_flow_invoices');
+    const challans = readList('invoice_flow_dcs');
+    const amountOf = invoice => Number(invoice.amount ?? invoice.total_amount ?? invoice.totalAmount ?? 0) || 0;
+    const unpaid = invoices.filter(invoice => !['paid', 'cancelled', 'archived'].includes(String(invoice.status || '').toLowerCase()));
+    const outstanding = unpaid.reduce((sum, invoice) => sum + amountOf(invoice), 0);
+    const dueCount = unpaid.filter(invoice => {
+        if (String(invoice.status || '').toLowerCase() === 'overdue') return true;
+        const dueDate = invoice.due_date ? new Date(invoice.due_date) : null;
+        return dueDate && !Number.isNaN(dueDate.getTime()) && dueDate < new Date();
+    }).length;
 
-    // Update stat cards
     const balanceEl = document.querySelector('#stat-balance .stat-value');
-    if (balanceEl) balanceEl.textContent = formatCurrency(data.stats.total_outstanding);
+    if (balanceEl) balanceEl.textContent = formatCurrency(outstanding);
+    const balanceNote = document.querySelector('#stat-balance .stat-change');
+    if (balanceNote) balanceNote.textContent = `${unpaid.length} unpaid invoice${unpaid.length === 1 ? '' : 's'}`;
 
     const challansEl = document.querySelector('#stat-challans .stat-value');
-    if (challansEl) challansEl.textContent = data.stats.pending_challans;
+    if (challansEl) challansEl.textContent = String(challans.length);
+    const challanNote = document.querySelector('#stat-challans .progress-label');
+    if (challanNote) challanNote.textContent = `${challans.length} saved delivery challan${challans.length === 1 ? '' : 's'}`;
 
     const invoicesEl = document.querySelector('#stat-invoices .stat-value');
-    if (invoicesEl) invoicesEl.textContent = data.stats.active_invoices;
+    if (invoicesEl) invoicesEl.textContent = String(unpaid.length);
+    const dueNote = document.querySelector('#stat-invoices .invoice-due-label');
+    if (dueNote) dueNote.textContent = `${dueCount} DUE`;
+    const fleetCard = document.getElementById('fleet-card');
+    if (fleetCard) fleetCard.style.display = 'none';
 
-    // Update transactions table
-    if (data.recentTransactions && data.recentTransactions.length > 0) {
-        renderTransactions(data.recentTransactions);
-    }
+    const transactions = [
+        ...invoices.map(invoice => ({
+            reference: invoice.invoice_number || invoice.invoice_no || invoice.id || 'Invoice',
+            date: invoice.date || invoice.created_at,
+            amount: amountOf(invoice),
+            status: invoice.status || 'pending',
+            companies: { name: invoice.companies?.name || invoice.vendor_name || invoice.supplier_name || 'Supplier' }
+        })),
+        ...challans.map(challan => ({
+            reference: challan.dcNo || challan.challan_number || challan.id || 'Delivery challan',
+            date: challan.dcDate || challan.date,
+            amount: challan.amount || 0,
+            status: challan.status || 'pending',
+            companies: { name: challan.vendorName || challan.companies?.name || 'Supplier' }
+        }))
+    ].sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0)).slice(0, 5);
+    renderTransactions(transactions);
 }
 
 function renderTransactions(transactions) {
     const tbody = document.querySelector('#transactions-table tbody');
     if (!tbody) return;
+    if (!transactions.length) {
+        tbody.innerHTML = '<tr><td colspan="5" style="padding:24px;text-align:center;color:#64748b">No transactions yet. Records saved in Invoice Flow will appear here.</td></tr>';
+        return;
+    }
 
     tbody.innerHTML = transactions.map(tx => {
         const company = tx.companies || {};
         const initials = company.initials || '??';
         const color = company.avatar_color || '#0a3d6b';
         const name = company.name || 'Unknown';
-        const dateStr = new Date(tx.date).toLocaleDateString('en-US', {
+        const parsedDate = new Date(tx.date);
+        const dateStr = Number.isNaN(parsedDate.getTime()) ? '—' : parsedDate.toLocaleDateString('en-US', {
             month: 'short', day: 'numeric', year: 'numeric'
         });
 
         return `
         <tr>
-            <td><span class="ref-code">${tx.reference}</span></td>
+            <td><span class="ref-code">${escapeHTML(tx.reference)}</span></td>
             <td>
                 <div class="entity-cell">
                     <span class="entity-avatar" style="background: ${color};">${initials}</span>
-                    <span class="entity-name">${name}</span>
+                    <span class="entity-name">${escapeHTML(name)}</span>
                 </div>
             </td>
             <td>${dateStr}</td>
             <td class="amount-cell">${formatCurrency(tx.amount)}</td>
-            <td><span class="status-badge status-${tx.status}">${tx.status.toUpperCase()}</span></td>
+            <td><span class="status-badge status-${escapeHTML(tx.status)}">${escapeHTML(String(tx.status).toUpperCase())}</span></td>
         </tr>`;
     }).join('');
+}
+
+function escapeHTML(value) {
+    return String(value ?? '').replace(/[&<>"']/g, character => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[character]);
 }
 
 // --- 4. INVOICES DATA ---
@@ -678,15 +534,19 @@ async function loadInvoicesData(page = 1, status = 'all') {
     let data = await apiFetch(params);
     
     if (!data) {
-        // Fallback to localStorage
         const localInvoices = JSON.parse(localStorage.getItem('invoice_flow_invoices') || '[]');
+        const filteredInvoices = status === 'all' ? localInvoices : localInvoices.filter(invoice =>
+            String(invoice.status || '').toLowerCase() === status.toLowerCase()
+        );
+        const limit = 10;
+        const pageInvoices = filteredInvoices.slice((page - 1) * limit, page * limit);
         const stats = {
-            totalRevenue: localInvoices.reduce((sum, inv) => sum + (inv.amount || 0), 0),
-            outstanding: localInvoices.filter(inv => inv.status !== 'paid').reduce((sum, inv) => sum + (inv.amount || 0), 0),
+            totalRevenue: localInvoices.reduce((sum, inv) => sum + (Number(inv.amount ?? inv.total_amount) || 0), 0),
+            outstanding: localInvoices.filter(inv => !['paid', 'cancelled', 'archived'].includes(String(inv.status || '').toLowerCase())).reduce((sum, inv) => sum + (Number(inv.amount ?? inv.total_amount) || 0), 0),
             overdueCount: localInvoices.filter(inv => inv.status === 'overdue').length,
             pendingApproval: localInvoices.filter(inv => inv.status === 'draft').length
         };
-        data = { success: true, invoices: localInvoices, stats, total: localInvoices.length, page: 1, limit: 10 };
+        data = { success: true, invoices: pageInvoices, stats, total: filteredInvoices.length, page, limit };
     }
 
     currentPage = data.page;
@@ -719,12 +579,14 @@ function renderInvoices(invoices) {
         const company = inv.companies || {};
         const initials = company.initials || '??';
         const color = company.avatar_color || '#0a3d6b';
-        const name = company.name || 'Unknown';
+        const name = company.name || inv.vendor_name || inv.supplier_name || 'Unknown';
         const email = company.email || '';
-        const createdStr = new Date(inv.created_at).toLocaleDateString('en-US', {
+        const createdDate = new Date(inv.created_at || inv.date);
+        const dueDate = new Date(inv.due_date || inv.date);
+        const createdStr = Number.isNaN(createdDate.getTime()) ? '—' : createdDate.toLocaleDateString('en-US', {
             month: 'short', day: 'numeric', year: 'numeric'
         });
-        const dueStr = new Date(inv.due_date).toLocaleDateString('en-US', {
+        const dueStr = Number.isNaN(dueDate.getTime()) ? '—' : dueDate.toLocaleDateString('en-US', {
             month: 'short', day: 'numeric', year: 'numeric'
         });
         const isOverdue = inv.status === 'overdue';
@@ -733,27 +595,27 @@ function renderInvoices(invoices) {
         return `
         <tr data-id="${inv.id}">
             <td>
-                <span class="inv-number">${inv.invoice_number}</span>
+                <span class="inv-number">${escapeHTML(inv.invoice_number || inv.invoice_no || inv.id || 'Invoice')}</span>
                 <span class="inv-created">Created ${createdStr}</span>
             </td>
             <td>
                 <div class="entity-cell">
                     <span class="entity-avatar" style="background:${color};">${initials}</span>
                     <div class="entity-info">
-                        <span class="entity-name">${name}</span>
-                        <span class="entity-email">${email}</span>
+                        <span class="entity-name">${escapeHTML(name)}</span>
+                        <span class="entity-email">${escapeHTML(email)}</span>
                     </div>
                 </div>
             </td>
             <td>
                 ${hasPartial ? `
                 <div class="inv-amount-detail">
-                    <span class="amount-cell">${formatCurrency(inv.amount)}</span>
+                    <span class="amount-cell">${formatCurrency(inv.amount ?? inv.total_amount ?? 0)}</span>
                     <span class="inv-paid-note">Paid: ${formatCurrency(inv.paid_amount)}</span>
-                </div>` : `<span class="amount-cell">${formatCurrency(inv.amount)}</span>`}
+                </div>` : `<span class="amount-cell">${formatCurrency(inv.amount ?? inv.total_amount ?? 0)}</span>`}
             </td>
             <td class="${isOverdue ? 'inv-date-overdue' : ''}">${dueStr}</td>
-            <td><span class="status-badge status-${inv.status}">${inv.status.toUpperCase()}</span></td>
+            <td><span class="status-badge status-${escapeHTML(inv.status || 'pending')}">${escapeHTML(String(inv.status || 'pending').toUpperCase())}</span></td>
             <td>
                 <div class="inv-actions">
                     <button class="inv-action-btn" title="View"><i class="fas fa-eye"></i></button>
@@ -2328,19 +2190,11 @@ function initLoadingSheets() {
             return;
         }
 
-        // Inventory data (matching seed data in loadInventoryData)
-        const inventoryItems = [
-            { rate: '2.80', code: '73181000L01140' },
-            { rate: '25.00', code: '73181000L01150' },
-            { rate: '5.00', code: '73181000L01152' },
-            { rate: '10.00', code: '73181000L01149' },
-            { rate: '16.00', code: '73181000L01142' },
-            { rate: '2.00', code: '73181000L01183' },
-            { rate: '2.80', code: '73181000L01161' },
-            { rate: '25.00', code: '73181000L01165' },
-            { rate: '16.00', code: '73181000L01158' },
-            { rate: '5.00', code: '73181000L01156' }
-        ];
+        let inventoryItems = [];
+        try {
+            const stored = JSON.parse(localStorage.getItem('invoice_flow_inventory') || '[]');
+            if (Array.isArray(stored)) inventoryItems = stored;
+        } catch (_) { inventoryItems = []; }
 
         const matches = inventoryItems.filter(item => parseFloat(item.rate) === rate);
 
@@ -2552,6 +2406,10 @@ function initLoadingSheets() {
 
     window.renderMainLoadingTable = function() {
         if (!loadingTableBody) return;
+        if (!window.allLoadingSheets.length) {
+            loadingTableBody.innerHTML = '<tr><td colspan="8" style="padding:24px;text-align:center;color:#64748b">No loading sheets yet.</td></tr>';
+            return;
+        }
         
         loadingTableBody.innerHTML = window.allLoadingSheets.map((sheet, index) => `
             <tr style="border-bottom: 1px solid var(--color-neutral-100); transition: background 0.2s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background='transparent'">
@@ -2841,21 +2699,6 @@ function initInventory() {
             const dept = document.getElementById('item-dept-input').value;
             const status = document.getElementById('item-status-input').value;
 
-            const savedItem = await apiFetch('inventory', {
-                method: 'POST',
-                body: JSON.stringify({
-                    sku: code,
-                    item_name: code,
-                    unit_price: parseFloat(rate) || 0,
-                    category: dept || '',
-                    quantity: 0
-                })
-            });
-            if (!savedItem) {
-                if (typeof showNotification === 'function') showNotification('Failed to save item to server', 'error');
-                return;
-            }
-            
             const newItem = { rate, code, dept, status };
             const inventory = JSON.parse(localStorage.getItem('invoice_flow_inventory') || '[]');
             inventory.unshift(newItem);
@@ -2905,23 +2748,12 @@ async function loadInventoryData() {
     const tbody = document.getElementById('inventory-table-body');
     if (!tbody) return;
 
-    let inventory = JSON.parse(localStorage.getItem('invoice_flow_inventory') || '[]');
-    
-    // Seed data if empty
+    const inventory = JSON.parse(localStorage.getItem('invoice_flow_inventory') || '[]');
     if (inventory.length === 0) {
-        inventory = [
-            { rate: '2.80', code: '73181000L01140', dept: 'Production', status: 'Inactive' },
-            { rate: '25.00', code: '73181000L01150', dept: 'Inventory', status: 'Active' },
-            { rate: '5.00', code: '73181000L01152', dept: 'Production', status: 'Inactive' },
-            { rate: '10.00', code: '73181000L01149', dept: 'Sales', status: 'Active' },
-            { rate: '16.00', code: '73181000L01142', dept: 'Production', status: 'Active' },
-            { rate: '2.00', code: '73181000L01183', dept: 'Packaging', status: 'Inactive' },
-            { rate: '2.80', code: '73181000L01161', dept: 'Production', status: 'Active' },
-            { rate: '25.00', code: '73181000L01165', dept: 'Inventory', status: 'Inactive' },
-            { rate: '16.00', code: '73181000L01158', dept: 'Quality Control', status: 'Inactive' },
-            { rate: '5.00', code: '73181000L01156', dept: 'Production', status: 'Active' }
-        ];
-        localStorage.setItem('invoice_flow_inventory', JSON.stringify(inventory));
+        tbody.innerHTML = '<tr><td colspan="5" style="padding:24px;text-align:center;color:#64748b">No inventory items yet.</td></tr>';
+        const info = document.getElementById('inventory-pagination-info');
+        if (info) info.textContent = 'Showing 0 entries';
+        return;
     }
 
     tbody.innerHTML = inventory.map(item => `
@@ -3005,18 +2837,6 @@ function initDept() {
             } else {
                 const id = 'D-' + Math.floor(100 + Math.random() * 900);
                 depts.unshift({ id, name, employees: 0, status: 'Active' });
-            }
-            
-            const deptToSync = depts.find(d => d.name === name);
-            if (deptToSync) {
-                const savedDept = await apiFetch('departments', {
-                    method: 'POST',
-                    body: JSON.stringify(deptToSync)
-                });
-                if (!savedDept) {
-                    if (typeof showNotification === 'function') showNotification('Failed to save department to server', 'error');
-                    return;
-                }
             }
             
             localStorage.setItem('invoice_flow_departments', JSON.stringify(depts));
@@ -3114,13 +2934,8 @@ function initProducts() {
         const products = JSON.parse(localStorage.getItem('invoice_flow_products') || '[]');
         
         if (products.length === 0) {
-            const seedProducts = [
-                { name: 'Hex Bolt M10 x 50', code: 'HB-M10-50', hsn: '7318', rate: 14.50 },
-                { name: 'Self Tapping Screw', code: 'STS-08', hsn: '7318', rate: 2.80 },
-                { name: 'Nylon Insert Lock Nut', code: 'NLN-M10', hsn: '7318', rate: 5.00 }
-            ];
-            localStorage.setItem('invoice_flow_products', JSON.stringify(seedProducts));
-            return renderProducts();
+            tbody.innerHTML = '<tr><td colspan="5" style="padding:24px;text-align:center;color:#64748b">No products yet.</td></tr>';
+            return;
         }
 
         tbody.innerHTML = products.map((p, index) => `
@@ -3150,15 +2965,6 @@ function initProducts() {
             const rate = document.getElementById('product-rate-input').value;
 
             const product = { name, code, hsn, rate: parseFloat(rate) };
-            const savedProduct = await apiFetch('products', { 
-                method: 'POST', 
-                body: JSON.stringify(product) 
-            });
-            if (!savedProduct) {
-                if (typeof showNotification === 'function') showNotification('Failed to save product to server', 'error');
-                return;
-            }
-
             const products = JSON.parse(localStorage.getItem('invoice_flow_products') || '[]');
             products.unshift(product);
             localStorage.setItem('invoice_flow_products', JSON.stringify(products));
@@ -3259,235 +3065,39 @@ function initClosedItems() {
 
 /* ---- Authentication & Team Management ---- */
 function initAuth() {
-    const STORAGE_KEY_TEAM = 'invoice_flow_team_members';
-    const STORAGE_KEY_SESSION = 'invoice_flow_current_session';
-
-    // 1. Initial State
-    const defaultAdmin = {
-        username: 'ADMIN',
-        password: '123',
-        role: 'Super Admin',
-        permissions: ['nav-dashboard', 'nav-invoices', 'nav-dc', 'nav-loading-sheets', 'nav-po', 'nav-rdc', 'nav-manage', 'nav-settings']
-    };
-
-    // 2. Load/Save Team
-    function getTeam() {
-        const team = JSON.parse(localStorage.getItem(STORAGE_KEY_TEAM) || '[]');
-        if (team.length === 0) {
-            team.push(defaultAdmin);
-            localStorage.setItem(STORAGE_KEY_TEAM, JSON.stringify(team));
-        }
-        return team;
-    }
-
-    // 3. Session Management
-    function getCurrentUser() {
-        return JSON.parse(sessionStorage.getItem(STORAGE_KEY_SESSION)) || defaultAdmin;
-    }
-
     window.applyUserPermissions = function(user) {
-        console.log("Applying permissions for:", user.username, user.permissions);
-        
-        const isSuperAdmin = user.role === 'Super Admin' || (user.permissions && user.permissions.includes('all'));
-        
-        // Only target top-level nav items that are direct children of the nav container
-        const navItems = document.querySelectorAll('.sidebar-nav > [id]');
-        navItems.forEach(item => {
-            if (item.id === 'nav-logout' || item.id === 'current-user-info') return; 
-            
-            const permissionId = item.id;
-            const alternateId = permissionId.startsWith('nav-group-') ? permissionId.replace('nav-group-', 'nav-') : permissionId.replace('nav-', 'nav-group-');
-            
-            const hasAccess = isSuperAdmin || 
-                             (user.permissions && (
-                                 user.permissions.includes(permissionId) || 
-                                 user.permissions.includes(alternateId) ||
-                                 (permissionId === 'nav-po' && user.permissions.includes('nav-purchase-orders'))
-                             ));
-            
-            if (hasAccess) {
-                // Use flex for everything as per sidebar.css
-                item.style.display = 'flex';
-                // Item groups need flex-direction column to show sub-items correctly
-                if (item.classList.contains('nav-item-group')) {
-                    item.style.flexDirection = 'column';
-                }
-            } else {
-                item.style.display = 'none';
-            }
+        const permissions = user?.permissions || [];
+        const hasAll = permissions.includes('all');
+        document.querySelectorAll('.sidebar-nav > [id]').forEach(item => {
+            if (['nav-logout', 'current-user-info'].includes(item.id)) return;
+            if (hasAll || permissions.includes(item.id)) item.style.display = 'flex';
+            else item.style.display = 'none';
         });
-
-        // Update UI info
+        const name = user?.name || user?.username || 'User';
         const displayName = document.getElementById('user-display-name');
         const roleLabel = document.getElementById('user-role-label');
         const avatar = document.getElementById('user-avatar');
-        
-        if (displayName) displayName.textContent = user.name || user.username;
-        if (roleLabel) roleLabel.textContent = user.role;
-        if (avatar) avatar.textContent = (user.name || user.username).substring(0, 2).toUpperCase();
-    }
-
-    // Expose for login
-    function applyPermissions(user) {
-        window.applyUserPermissions(user);
-    }
-
-    // 4. Team Management (Admin Only)
-    function initTeamUI() {
-        const btnAdd = document.getElementById('btn-open-add-team');
-        const modalAdd = document.getElementById('modal-add-team');
-        const formAdd = document.getElementById('form-add-team');
-        const modalTitle = modalAdd.querySelector('h3');
-        const submitBtn = formAdd.querySelector('button[type="submit"]');
-        const teamTableBody = document.getElementById('team-table-body');
-        let currentEditIndex = -1;
-
-        if (btnAdd) {
-            btnAdd.onclick = () => {
-                currentEditIndex = -1;
-                modalTitle.textContent = 'Add Team Member';
-                submitBtn.textContent = 'Create Team Member';
-                formAdd.reset();
-                modalAdd.style.display = 'flex';
-            };
-        }
-
-        if (formAdd) {
-            formAdd.onsubmit = (e) => {
-                e.preventDefault();
-                const name = document.getElementById('team-name').value;
-                const password = document.getElementById('team-password').value;
-                const checks = formAdd.querySelectorAll('.permission-check:checked');
-                const permissions = Array.from(checks).map(c => c.dataset.id);
-
-                const team = getTeam();
-                const memberData = { username: name, password, role: currentEditIndex === 0 ? 'Super Admin' : 'User', permissions };
-
-                if (currentEditIndex > -1) {
-                    team[currentEditIndex] = memberData;
-                } else {
-                    team.push(memberData);
-                }
-
-                localStorage.setItem(STORAGE_KEY_TEAM, JSON.stringify(team));
-                
-                // Sync to Supabase
-                apiFetch('team_members', {
-                    method: 'POST',
-                    body: JSON.stringify(memberData)
-                });
-                
-                modalAdd.style.display = 'none';
-                formAdd.reset();
-                renderTeamList();
-                alert(currentEditIndex > -1 ? 'Team Member Updated!' : 'Team Member Added!');
-            };
-        }
-
-        function renderTeamList() {
-            if (!teamTableBody) return;
-            const team = getTeam();
-            teamTableBody.innerHTML = team.map((member, index) => `
-                <tr style="border-bottom: 1px solid var(--color-neutral-100);">
-                    <td style="padding: 16px;">
-                        <div style="display: flex; align-items: center; gap: 12px;">
-                            <div style="width: 40px; height: 40px; border-radius: 50%; background: var(--color-primary-100); color: var(--color-primary-700); display: flex; align-items: center; justify-content: center; font-weight: 700;">${member.username.substring(0,2).toUpperCase()}</div>
-                            <div>
-                                <div style="font-weight: 700; color: var(--color-neutral-900);">${member.username}</div>
-                                <div style="font-size: 0.75rem; color: var(--color-neutral-500);">${member.username}@example.com</div>
-                            </div>
-                        </div>
-                    </td>
-                    <td style="padding: 16px; color: var(--color-neutral-700); font-weight: 600;">${member.role}</td>
-                    <td style="padding: 16px; color: var(--color-neutral-700);">Management</td>
-                    <td style="padding: 16px;"><span style="background: var(--color-success-50); color: var(--color-success-700); padding: 4px 10px; border-radius: 99px; font-size: 0.75rem; font-weight: 700;">Active</span></td>
-                    <td style="padding: 16px; text-align: right;">
-                        <div style="display: flex; justify-content: flex-end; gap: 8px;">
-                            <button class="btn-edit-team" data-index="${index}" style="background: none; border: none; color: var(--color-primary-600); cursor: pointer;"><i class="fas fa-edit"></i></button>
-                            <button class="btn-delete-team" data-index="${index}" style="background: none; border: none; color: #ef4444; cursor: pointer; ${member.role === 'Super Admin' ? 'visibility: hidden' : ''}"><i class="fas fa-trash"></i></button>
-                        </div>
-                    </td>
-                </tr>
-            `).join('');
-
-            teamTableBody.querySelectorAll('.btn-edit-team').forEach(btn => {
-                btn.onclick = () => {
-                    const idx = parseInt(btn.dataset.index);
-                    const member = getTeam()[idx];
-                    currentEditIndex = idx;
-                    
-                    document.getElementById('team-name').value = member.username;
-                    document.getElementById('team-password').value = member.password;
-                    
-                    // Reset and set checks
-                    formAdd.querySelectorAll('.permission-check').forEach(check => {
-                        check.checked = member.role === 'Super Admin' || member.permissions.includes(check.dataset.id);
-                    });
-
-                    modalTitle.textContent = 'Edit Team Member';
-                    submitBtn.textContent = 'Update Team Member';
-                    modalAdd.style.display = 'flex';
-                };
-            });
-
-            teamTableBody.querySelectorAll('.btn-delete-team').forEach(btn => {
-                btn.onclick = () => {
-                    const idx = btn.dataset.index;
-                    const team = getTeam();
-                    if (confirm(`Delete user ${team[idx].username}?`)) {
-                        team.splice(idx, 1);
-                        localStorage.setItem(STORAGE_KEY_TEAM, JSON.stringify(team));
-                        renderTeamList();
-                    }
-                };
-            });
-        }
-
-        renderTeamList();
-    }
-
-    // 5. Login/Logout Logic
-    const loginModal = document.getElementById('modal-login');
-    const loginForm = document.getElementById('form-login');
-    const btnLogout = document.getElementById('nav-logout');
-
-    if (btnLogout) {
-        btnLogout.onclick = (e) => {
-            e.preventDefault();
-            if (confirm('Are you sure you want to logout?')) {
-                sessionStorage.removeItem(STORAGE_KEY_SESSION);
-                loginModal.style.display = 'flex';
-            }
-        };
-    }
-
-
-
-    const initPasswordToggles = () => {
-        document.querySelectorAll('.password-toggle-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const targetId = btn.dataset.target;
-                const input = document.getElementById(targetId);
-                const icon = btn.querySelector('i');
-                
-                if (input.type === 'password') {
-                    input.type = 'text';
-                    icon.classList.remove('fa-eye');
-                    icon.classList.add('fa-eye-slash');
-                } else {
-                    input.type = 'password';
-                    icon.classList.remove('fa-eye-slash');
-                    icon.classList.add('fa-eye');
-                }
-            });
-        });
+        if (displayName) displayName.textContent = name;
+        if (roleLabel) roleLabel.textContent = user?.role || 'User';
+        if (avatar) avatar.textContent = name.substring(0, 2).toUpperCase();
     };
-
-    // Initial load
-    const currentUser = getCurrentUser();
-    applyPermissions(currentUser);
-    initTeamUI();
-    initPasswordToggles();
+    const teamButton = document.getElementById('btn-open-add-team');
+    if (teamButton) { teamButton.disabled = true; teamButton.title = 'Create accounts in Supabase Auth'; }
+    const teamBody = document.getElementById('team-table-body');
+    if (teamBody) teamBody.innerHTML = '<tr><td colspan="5" style="padding:16px">User accounts are managed securely in Supabase Auth.</td></tr>';
+    document.querySelectorAll('.password-toggle-btn').forEach(button => {
+        button.addEventListener('click', () => {
+            const input = document.getElementById(button.dataset.target);
+            const icon = button.querySelector('i');
+            if (!input) return;
+            const show = input.type === 'password';
+            input.type = show ? 'text' : 'password';
+            if (icon) {
+                icon.classList.toggle('fa-eye', !show);
+                icon.classList.toggle('fa-eye-slash', show);
+            }
+        });
+    });
 }
 
 /* ---- Purchase Orders Logic ---- */
@@ -3931,14 +3541,6 @@ function initCompanyProfile() {
                 currency: document.getElementById('settings-currency').value,
                 logo: logoPreview.src || ''
             };
-            const savedProfile = await apiFetch('app_settings', {
-                method: 'POST',
-                body: JSON.stringify({ key: 'company_profile', value: updatedProfile })
-            });
-            if (!savedProfile) {
-                alert('Failed to update company profile on server.');
-                return;
-            }
             localStorage.setItem(STORAGE_KEY_PROFILE, JSON.stringify(updatedProfile));
             updateAppLogos(updatedProfile.logo);
             updateAllPrintHeaders();
@@ -3989,3 +3591,4 @@ document.addEventListener('DOMContentLoaded', () => {
     initCompanyProfile();
     updateAllPrintHeaders();
 });
+

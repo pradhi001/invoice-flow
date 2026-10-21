@@ -5,7 +5,8 @@
   "description": "Invoice Flow - Vercel Serverless Backend",
   "scripts": {
     "dev": "vercel dev",
-    "deploy": "vercel --prod"
+    "deploy": "vercel --prod",
+    "test": "node --test"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.105.1"
@@ -14,3 +15,4 @@
     "vercel": "^37.0.0"
   }
 }
+
