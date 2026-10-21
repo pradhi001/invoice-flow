@@ -1,31 +1,28 @@
-# Shared Invoice Flow setup
+# Invoice Flow shared data setup
 
-## Before using shared data
+## Access and accounts
 
-Invoice Flow now signs users in through Supabase Auth. Create one Supabase Auth account for each person who should use the app. The former browser-only team list and local passwords are not login accounts and are intentionally no longer used. The app does not store account passwords in business data.
+Invoice Flow signs in through Supabase Auth. An account can use the app only after an administrator sets `app_metadata.invoice_flow_access` to `true`. Public sign-up does not grant app access. Only trusted Supabase `app_metadata` is used for that check; user-editable metadata is not trusted.
 
-In Vercel, configure these server-side environment variables for the Invoice Flow project:
+The `role` and `permissions` values currently affect menu visibility in the browser and are not API permission limits. Every user granted app access can read and change the full shared dataset. This version does not enforce per-company or per-record permissions, so only grant access to people who should see and edit all shared records.
 
-- `SUPABASE_URL`: the Supabase project URL.
-- `SUPABASE_SERVICE_KEY`: the Supabase service role key. Keep it server-only; never add it to HTML or browser JavaScript.
+## Vercel settings
 
-Set the Supabase Auth site URL to the live Invoice Flow domain and allow that same domain in Auth redirect URLs so password-reset links return to the app.
+Configure these server-side variables on the Vercel project:
 
-The existing public Supabase anon key in the browser remains a public key. It does not grant direct table access through RLS.
+- `SUPABASE_URL`: the full project URL, such as `https://<project-ref>.supabase.co`.
+- `SUPABASE_SERVICE_KEY`: the service-role key. Keep it server-only; never place it in HTML or browser JavaScript.
 
-## Local data migration
+The API fails closed with a generic error if either value is missing or invalid. Do not paste secrets into issue comments or chat. The public browser key is not the service key and does not bypass row-level security.
 
-After the code is deployed, sign in on the device that has the records you want to share. If shared cloud data is empty and local business records exist, Invoice Flow requires a JSON backup download before offering the explicit import action. Keep that backup somewhere safe. If both cloud and local records exist, choose the backup-and-merge option; records with conflicting identifiers are not uploaded and are reported for manual resolution. Choosing the shared copy also requires a backup first.
+## Existing browser records
 
-The import and merge only include business keys beginning with `invoice_flow_`. Authentication sessions, team-member password records, and credential-like keys are excluded. No local browser storage is automatically cleared during setup.
+Business data is synchronized as one JSON snapshot in the existing `app_settings` table. Authentication and credential-shaped keys are excluded.
 
-## Current storage behavior
+If cloud data is empty, the first device must download a backup before choosing to import its local records. If cloud and local records both exist, a backup is required before a merge. Conflicting records stop the merge for manual resolution. Existing local browser keys are never automatically removed; cloud data fills empty local defaults, and local values with data are not silently replaced.
 
-Business data is saved in the browser and synchronized as one JSON snapshot in the existing `app_settings` table. API access requires a valid Supabase Auth access token and the service key stays on the server. Conflicting writes stop and preserve the device copy; the app asks the user to back up and reload before continuing. Other devices are checked every 30 seconds and require a reload to view a newer snapshot.
+Other devices check for updates periodically and require a reload to display the newest snapshot. This is a migration path for a shared team dataset, not a normalized multi-company database.
 
-This shared snapshot approach is an initial migration path, not a normalized multi-user database. All authenticated app users can access the same business records. Do not grant Supabase Auth accounts to people who should not see the shared company data.
+## Production database caution
 
-## Deployment notes
-
-The feature is delivered on a feature branch and should be reviewed/merged before Vercel deploys it. Do not apply the repository's older `supabase/schema.sql`; it does not match the connected production schema.
-
+Do not run the older `supabase/schema.sql` against the existing production project. It contains demo seed statements and does not match the live schema. This code change does not perform a production database migration or deploy.
