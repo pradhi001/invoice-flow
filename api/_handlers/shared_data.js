@@ -26,7 +26,7 @@ module.exports = async (req, res) => {
             const allowedKeys = Object.keys(value);
             if (allowedKeys.length > 200 || allowedKeys.some(key =>
                 !/^invoice_flow_[a-z0-9_]+$/i.test(key) ||
-                /(?:session|current_user|team_members|user_companies|password|token)/i.test(key)
+                /(?:auth|session|current_user|team_members|user_companies|users?|credential|password|token)/i.test(key)
             )) {
                 return res.status(400).json({ error: 'Shared data contains a private or unsupported key.' });
             }
@@ -77,4 +77,3 @@ module.exports = async (req, res) => {
         return res.status(500).json({ error: 'Could not synchronize shared data.' });
     }
 };
-
