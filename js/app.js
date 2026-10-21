@@ -172,7 +172,7 @@ const onAppReady = () => {
                 role: user.app_metadata?.role === 'admin' ? 'Super Admin' : 'User',
                 permissions: Array.isArray(user.app_metadata?.permissions) && user.app_metadata.permissions.length
                     ? user.app_metadata.permissions
-                    : ['all']
+                    : []
             };
             if (userEmailSpan) userEmailSpan.textContent = appUser.name || appUser.username;
             const profileAvatar = document.querySelector('.user-profile img');
@@ -200,6 +200,7 @@ const onAppReady = () => {
         client.auth.getSession().then(({ data, error }) => {
             if (error || !data?.session?.user) { showLogin(); return; }
             showApp(data.session.user).catch(error => {
+                if (error.status === 403) client.auth.signOut();
                 showLogin();
                 showNotification(error.message, 'error');
             });
@@ -219,6 +220,7 @@ const onAppReady = () => {
                 await showApp(data.user);
                 showNotification(`Welcome back, ${data.user.user_metadata?.full_name || data.user.email}!`, 'success');
             } catch (error) {
+                if (error.status === 403) await client.auth.signOut();
                 showNotification(error.message || 'Unable to sign in. Please check your email and password.', 'error');
             } finally {
                 button.innerHTML = originalText;
