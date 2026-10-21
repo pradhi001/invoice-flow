@@ -27,8 +27,8 @@ function getApiBaseUrl() {
  * @returns {object} Supabase configuration with url and key
  */
 function getSupabaseConfig() {
-    const url = process.env.SUPABASE_URL;
-    const key = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY;
+    const url = process.env.SUPABASE_URL?.trim();
+    const key = process.env.SUPABASE_SERVICE_KEY;
     
     if (!url || !key) {
         console.warn('⚠️  Warning: Supabase environment variables not fully configured');
@@ -36,10 +36,7 @@ function getSupabaseConfig() {
         console.warn('   SUPABASE_KEY:', key ? '✓ Set' : '✗ Missing');
     }
     
-    return {
-        url: url || 'https://placeholder.supabase.co',
-        key: key || 'placeholder-key'
-    };
+    return { url: url || null, key: key || null };
 }
 
 /**
@@ -51,12 +48,23 @@ function validateCloudEnvironment() {
     const warnings = [];
     
     // Check critical variables
-    if (!process.env.SUPABASE_URL) {
+    const supabaseUrl = process.env.SUPABASE_URL?.trim();
+    if (!supabaseUrl) {
         errors.push('SUPABASE_URL environment variable is missing');
+    } else {
+        try {
+            const parsed = new URL(supabaseUrl);
+            const localHttp = process.env.NODE_ENV !== 'production' && parsed.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(parsed.hostname);
+            if ((!localHttp && parsed.protocol !== 'https:') || parsed.username || parsed.password || parsed.search || parsed.hash || (parsed.pathname !== '/' && parsed.pathname !== '')) {
+                errors.push('SUPABASE_URL must be a valid HTTPS project URL');
+            }
+        } catch (_) {
+            errors.push('SUPABASE_URL must be a valid HTTPS project URL');
+        }
     }
     
-    if (!process.env.SUPABASE_SERVICE_KEY && !process.env.SUPABASE_ANON_KEY) {
-        errors.push('SUPABASE_SERVICE_KEY or SUPABASE_ANON_KEY environment variable is missing');
+    if (!process.env.SUPABASE_SERVICE_KEY) {
+        errors.push('SUPABASE_SERVICE_KEY environment variable is missing');
     }
     
     if (process.env.NODE_ENV === 'production') {
@@ -117,4 +125,3 @@ module.exports = {
     getCorsHeaders,
     getSecurityHeaders
 };
-
