@@ -1,6 +1,4 @@
-const supabase = require('../lib/supabase');
-
-/** Validate a Supabase access token before any service-role database request. */
+/** Verify a Supabase Auth token and require an administrator-approved app claim. */
 async function authenticateRequest(req, res) {
     const authorization = req.headers.authorization || '';
     const match = authorization.match(/^Bearer\s+(.+)$/i);
@@ -9,15 +7,32 @@ async function authenticateRequest(req, res) {
         return false;
     }
 
-    const { data, error } = await supabase.auth.getUser(match[1]);
-    if (error || !data?.user) {
-        res.status(401).json({ error: 'Your session is invalid or expired. Please sign in again.' });
+    let user;
+    try {
+        // Lazy loading keeps the health endpoint available when database config is invalid.
+        const supabase = require('../lib/supabase');
+        const { data, error } = await supabase.auth.getUser(match[1]);
+        if (error || !data?.user) {
+            res.status(401).json({ error: 'Your session is invalid or expired. Please sign in again.' });
+            return false;
+        }
+        user = data.user;
+    } catch (error) {
+        console.error('Authentication service unavailable:', error.code || error.name || 'unknown');
+        res.status(503).json({ error: 'Authentication service is temporarily unavailable.' });
         return false;
     }
 
-    req.authUser = data.user;
+    const appMetadata = user.app_metadata || {};
+    if (appMetadata.invoice_flow_access !== true) {
+        res.status(403).json({ error: 'This account is not authorized to use Invoice Flow.' });
+        return false;
+    }
+
+    req.authUser = user;
+    req.authRole = typeof appMetadata.role === 'string' ? appMetadata.role : 'user';
+    req.authPermissions = Array.isArray(appMetadata.permissions) ? appMetadata.permissions : [];
     return true;
 }
 
 module.exports = { authenticateRequest };
-
