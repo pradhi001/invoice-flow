@@ -72,11 +72,10 @@ module.exports = async (req, res) => {
         }
         return await handler(req, res);
     } catch (error) {
-        console.error(`Router error for ${handlerName}:`, error);
-        return res.status(500).json({
-            error: 'Router execution failed',
-            endpoint: handlerName
-        });
+        console.error(`Router error for ${handlerName}:`, error.code || error.name || 'unknown');
+        if (error.code === 'SUPABASE_CONFIGURATION_ERROR') {
+            return res.status(503).json({ error: 'Server configuration is unavailable.' });
+        }
+        return res.status(500).json({ error: 'Request could not be completed.', endpoint: handlerName });
     }
 };
-
